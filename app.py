@@ -70,7 +70,7 @@ def sort_descriptions(bt, it):
     return {
         "Index":          f"Alphabetical order of {bt} ID — no analytical grouping; stable baseline.",
         "Similarity":     f"{bt.capitalize()}s sharing the same {it}s at positions 1–4 cluster together, surfacing archetypes as broad horizontal color bands. Default.",
-        "Bin Rank":       f"Top = highest-ranked {bt}s (rank 1). Use this when the question is about rank: do top {bt}s share a distinct profile?",
+        f"{bt.capitalize()} Rank": f"Top = highest-ranked {bt}s (rank 1). Use this when the question is about rank: do top {bt}s share a distinct profile?",
         "Top-rank":       f"Full lexicographic sort over all positions. The leftmost column is perfectly grouped; later columns fragment.",
         "Selected Share": f"Top = {bt}s whose top-10 positions are most saturated by the selected {it}s. Only available when 1–9 {it}s are highlighted.",
     }
@@ -288,8 +288,7 @@ def apply_url_params(dates, item_codes=None):
             pass
 
     if 'sort' in p and 'sort_radio' not in st.session_state:
-        if p['sort'] in SORT_DESCRIPTIONS:
-            st.session_state['sort_radio'] = p['sort']
+        st.session_state['sort_radio'] = p['sort']  # guard below resets if invalid
 
     if 'cs' in p and 'cell_sz' not in st.session_state:
         try:
@@ -602,7 +601,7 @@ col_sort, col_size = st.columns([3, 2])
 
 n_sel = len(selected_items) if selected_items else 0
 with col_sort:
-    sort_options = ["Index", "Similarity", "Bin Rank", "Top-rank"]
+    sort_options = ["Index", "Similarity", f"{bin_term.capitalize()} Rank", "Top-rank"]
     if 0 < n_sel < n_items:
         sort_options.append("Selected Share")
 
@@ -656,7 +655,7 @@ share_f    = share[:, pos_indices]
 n_vis = len(visible_bin_indices)
 if sort_mode == "Index":
     order = np.arange(n_vis)
-elif sort_mode == "Bin Rank":
+elif sort_mode == f"{bin_term.capitalize()} Rank":
     order = np.argsort(data['bin_ranks'][visible_bin_indices], kind='stable')
 elif sort_mode == "Similarity":
     top4  = majority[:, :4]
