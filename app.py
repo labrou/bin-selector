@@ -751,14 +751,6 @@ with exp_c1:
         use_container_width=True,
     )
 
-with exp_c2:
-    try:
-        png_bytes = None
-        # Build figure first (done below); placeholder here — PNG built after fig
-        _png_placeholder = st.empty()
-    except Exception:
-        pass
-
 # ── Build figure ──────────────────────────────────────────────────────────────
 fig = make_subplots(
     rows=2, cols=1,
@@ -849,20 +841,6 @@ fig.update_yaxes(
     row=2, col=1,
 )
 
-# PNG export (requires kaleido)
-with exp_c2:
-    try:
-        png_bytes = fig.to_image(format="png", width=total_width, height=total_height, scale=2)
-        st.download_button(
-            "Download PNG",
-            png_bytes,
-            file_name="atlas_view.png",
-            mime="image/png",
-            use_container_width=True,
-        )
-    except Exception:
-        st.caption("`pip install kaleido` for PNG export")
-
 # ── Render chart ──────────────────────────────────────────────────────────────
 chart_event = st.plotly_chart(
     fig,
@@ -870,6 +848,35 @@ chart_event = st.plotly_chart(
     on_select="rerun",
     key="main_chart",
 )
+
+# ── PNG export — lazy so kaleido never blocks the chart from rendering ─────────
+# fig.to_image() starts a subprocess; on Windows it can hang with no exception.
+# We only call it when the user explicitly clicks "Prepare PNG".
+with exp_c2:
+    _png_sig = (total_width, total_height, sort_mode,
+                str(date_range[0]), str(date_range[1]),
+                str(rank_range), str(pos_range), ','.join(sorted(regions_active)))
+    if st.session_state.get('_png_sig') != _png_sig:
+        st.session_state.pop('_png_bytes', None)
+
+    if '_png_bytes' not in st.session_state:
+        if st.button("Prepare PNG", use_container_width=True, key="btn_png"):
+            try:
+                with st.spinner("Generating…"):
+                    _png = fig.to_image(format="png", width=total_width, height=total_height, scale=2)
+                st.session_state['_png_bytes'] = _png
+                st.session_state['_png_sig'] = _png_sig
+                st.rerun()
+            except Exception:
+                st.caption("PNG failed — run `pip install 'kaleido<1'`")
+    else:
+        st.download_button(
+            "Download PNG",
+            st.session_state['_png_bytes'],
+            file_name="atlas_view.png",
+            mime="image/png",
+            use_container_width=True,
+        )
 
 # ── Drill-down ────────────────────────────────────────────────────────────────
 # Detect clicked bin from chart event (heatmap trace is curve 0)
