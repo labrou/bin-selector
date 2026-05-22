@@ -971,7 +971,9 @@ if drill_bin != "— select a bin —":
             )
 
 # ── Update URL query params (reflects current state for sharing) ───────────────
-st.query_params.update({
+# Only write when something actually changed — unconditional writes trigger a
+# rerun loop in some Streamlit versions, causing infinite local loading.
+_new_params = {
     'regions': ','.join(sorted(set(regions_active))),
     'items':   ','.join(selected_items) if selected_items else '',
     'ds':      date_range[0].isoformat(),
@@ -983,4 +985,6 @@ st.query_params.update({
     'sort':    sort_mode,
     'cs':      str(cell_size),
     'af':      '1' if auto_fit else '0',
-})
+}
+if dict(st.query_params) != _new_params:
+    st.query_params.update(_new_params)
