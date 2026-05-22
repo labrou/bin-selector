@@ -487,7 +487,6 @@ max_rank_val = int(data['bin_ranks'].max())
 # ── Title ─────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="title-block">
-    <div class="eyebrow">Fig. 01 · Bin × Position × Item × Date</div>
     <div class="title">Ranked Placement Atlas</div>
     <div class="subtitle">{len(data['bin_names'])} bins × {n_pos_total} ranked positions × {len(ITEMS)} items × {len(data['dates'])} weekly snapshots. When multiple dates are selected, each cell shows the modal item across the range (ties broken by recency).</div>
 </div>
