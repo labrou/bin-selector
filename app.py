@@ -16,6 +16,7 @@ Data schema (synthetic):
         - 20% of bins undergo a one-time regime change between weeks 15-37
 """
 
+import json
 import streamlit as st
 import streamlit.components.v1 as components
 import numpy as np
@@ -246,7 +247,7 @@ st.markdown(f"""
 # BaseWeb pills may wrap each button in its own div, making every button
 # nth-child(1) of its wrapper. JS queries directly by button index instead.
 # Discriminator: the items group has exactly len(ITEMS)=10 buttons; regions has 6.
-_colors_json = str(COLORS).replace("'", '"')
+_colors_json = json.dumps(COLORS)
 components.html(
     f"""<script>
 (function(){{
@@ -267,7 +268,13 @@ components.html(
       }}
     }}catch(e){{}}
   }}
-  go(); setInterval(go, 200);
+  go();
+  try{{
+    new MutationObserver(go).observe(
+      window.parent.document.body,
+      {{subtree:true,childList:true,attributes:true,attributeFilter:['aria-pressed','aria-checked']}}
+    );
+  }}catch(e){{ setInterval(go,200); }}
 }})();
 </script>""",
     height=0,
@@ -472,16 +479,13 @@ bin_names_disp  = data['bin_names'][ordered_bin_indices]
 
 # Customdata for hover — shape (n_bins, n_positions, 5)
 customdata = np.empty((n_show_bins, n_show_pos, 5), dtype=object)
-for j in range(n_show_bins):
-    for i in range(n_show_pos):
-        customdata[j, i, 0] = bin_names_disp[j]
-        customdata[j, i, 1] = int(ranks_disp[j])
-        customdata[j, i, 2] = regions_disp[j]
-        customdata[j, i, 3] = int(positions_disp[i])
-        customdata[j, i, 4] = float(share_disp[j, i])
+customdata[:, :, 0] = bin_names_disp[:, None]
+customdata[:, :, 1] = ranks_disp[:, None].astype(int)
+customdata[:, :, 2] = regions_disp[:, None]
+customdata[:, :, 3] = positions_disp[None, :].astype(int)
+customdata[:, :, 4] = share_disp.astype(float)
 
-text_grid = np.array([[ITEMS[int(majority_disp[j, i])] for i in range(n_show_pos)]
-                       for j in range(n_show_bins)])
+text_grid = np.array(ITEMS)[majority_disp.astype(int)]
 
 z = majority_disp.astype(float)  # rows=bins, cols=positions
 
@@ -510,10 +514,7 @@ fig.add_trace(
 )
 
 # Bottom marginal: per-position item distribution across visible bins
-pos_dist = np.zeros((n_show_pos, 10), dtype=int)
-for i in range(n_show_pos):
-    for item_idx in range(10):
-        pos_dist[i, item_idx] = int((majority_disp[:, i] == item_idx).sum())
+pos_dist = np.stack([(majority_disp == i).sum(axis=0) for i in range(10)], axis=1)
 
 for item_idx in range(10):
     fig.add_trace(

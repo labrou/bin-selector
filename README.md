@@ -437,8 +437,8 @@ applied to `visible_bin_indices`, produces the desired row order:
 
 ```python
 if sort_mode == "Similarity":
-    top10 = majority[:, :10]
-    keys = [''.join(f'{int(x):x}' for x in row) for row in top10]
+    top4 = majority[:, :4]
+    keys = [''.join(f'{int(x):x}' for x in row) for row in top4]
     order = np.argsort(keys, kind='stable')
 ```
 
