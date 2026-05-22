@@ -9,7 +9,7 @@ Run:
 Features:
   - Categorical heatmap: bins × positions × items × snapshots
   - Region / rank / position / date filters with shareable URL state
-  - Sort modes: Index, Similarity, Bin Rank, Top-rank, Selected Share
+  - Sort modes: Index, Similarity, <bin_term> Rank, Top-rank, Selected Share
   - Item highlight (dims non-selected items)
   - Legend mapping item codes to colors
   - Click any bin row to open its full time-series heatmap
@@ -835,7 +835,7 @@ summary_html = f"""
                 margin-bottom:4px;">View summary</div>
     <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
     <b>{n_show_pos}</b> position{'s' if n_show_pos != 1 else ''} ·
-    <b>{date_count}</b> weekly snapshot{'s' if multi_date else ''} ·
+    <b>{date_count}</b> snapshot{'s' if multi_date else ''} ·
     regions: <b>{', '.join(sorted(set(regions_active)))}</b> ·
     sort: <b>{sort_mode}</b>
     <div style="margin-top:5px;color:#4A4A4A;">{mode_sentence}</div>
