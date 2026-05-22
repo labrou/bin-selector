@@ -37,9 +37,12 @@ from plotly.subplots import make_subplots
 from datetime import date, timedelta
 
 # ============ CONSTANTS ============
+N_MAX_ITEMS = 12   # hard cap: beyond ~12 heatmap colors become indistinguishable
+
 ITEMS = ['APX', 'BRT', 'CFD', 'DLT', 'ETR', 'FRM', 'GVS', 'HXC', 'INV', 'JTL']
 COLORS = ['#B91C1C', '#1E3A8A', '#15803D', '#CA8A04', '#6D28D9',
-          '#DB2777', '#0E7490', '#525252', '#92400E', '#4D7C0F']
+          '#DB2777', '#0E7490', '#525252', '#92400E', '#4D7C0F',
+          '#C2410C', '#0369A1']  # two extra slots for uploaded data
 REGIONS = ['NA', 'SA', 'EU', 'AS', 'CN', 'AU']
 BIN_NAMES = [
     'Apex',  'Basin', 'Birch', 'Bloom', 'Bluff', 'Brace', 'Briar', 'Brook',
@@ -161,11 +164,14 @@ def load_user_data(file_bytes: bytes, filename: str):
     df['item']   = df['item'].astype(str)
     df['bin_id'] = df['bin_id'].astype(str)
 
-    # Accept any item codes — just cap at 10 unique values
+    # Accept any item codes up to N_MAX_ITEMS; if more, keep the most frequent
+    all_items    = sorted(df['item'].unique().tolist())
+    dropped_items: list[str] = []
+    if len(all_items) > N_MAX_ITEMS:
+        top = df['item'].value_counts().nlargest(N_MAX_ITEMS).index.tolist()
+        dropped_items = sorted(set(all_items) - set(top))
+        df = df[df['item'].isin(top)].copy()
     user_items = sorted(df['item'].unique().tolist())
-    if len(user_items) > 10:
-        st.error(f"CSV has {len(user_items)} unique item values; maximum supported is 10.")
-        return None
 
     unknown_regions = sorted(set(df['region'].astype(str).unique()) - set(REGIONS))
     if unknown_regions:
@@ -203,13 +209,14 @@ def load_user_data(file_bytes: bytes, filename: str):
     user_colors = [COLORS[i % len(COLORS)] for i in range(len(user_items))]
 
     return {
-        'items':       items_array,
-        'bin_ranks':   bin_meta['bin_rank'].to_numpy().astype(int),
-        'bin_regions': bin_meta['region'].to_numpy().astype(str),
-        'bin_names':   bin_names_arr,
-        'dates':       list(dates),
-        'item_codes':  user_items,
-        'item_colors': user_colors,
+        'items':         items_array,
+        'bin_ranks':     bin_meta['bin_rank'].to_numpy().astype(int),
+        'bin_regions':   bin_meta['region'].to_numpy().astype(str),
+        'bin_names':     bin_names_arr,
+        'dates':         list(dates),
+        'item_codes':    user_items,
+        'item_colors':   user_colors,
+        'dropped_items': dropped_items,
     }
 
 
@@ -426,11 +433,18 @@ with st.sidebar:
                 f"{uploaded.name}\n\n"
                 f"{n_b} bins · {n_p} positions · {n_w} weeks · {n_it} items"
             )
+            if user_data.get('dropped_items'):
+                dropped = user_data['dropped_items']
+                st.warning(
+                    f"Your data had more than {N_MAX_ITEMS} unique item values. "
+                    f"Kept the {N_MAX_ITEMS} most frequent; "
+                    f"dropped **{len(dropped)}**: {', '.join(dropped)}."
+                )
     else:
         st.caption("Using synthetic demo data. Upload a CSV to use your own data.")
         st.caption(
             "Required columns: `bin_id`, `date`, `position`, `item`, `bin_rank`, `region`  \n"
-            "Any item codes accepted — up to 10 unique values.  \n"
+            f"Up to {N_MAX_ITEMS} unique item values (most frequent kept if exceeded).  \n"
             "`bin_id` is used as the display name."
         )
 
@@ -938,7 +952,7 @@ if drill_bin != _no_sel:
         bin_region  = data['bin_regions'][bidx]
         bin_weekly  = data['items'][bidx]               # (n_weeks, n_pos_total)
         drill_items = bin_weekly[date_indices][:, pos_indices]  # (n_dates, n_pos)
-        drill_dates = [data['dates'][idx] for idx in date_indices]
+        drill_dates = data['dates'][date_start_idx:date_end_idx + 1]
 
         with st.expander(
             f"Time series · {drill_bin} · Rank {bin_rank_v} · {bin_region}",
