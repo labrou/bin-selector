@@ -7,7 +7,7 @@ Run:
     streamlit run app.py
 
 Features:
-  - Categorical heatmap: bins × positions × items × weekly snapshots
+  - Categorical heatmap: bins × positions × items × snapshots
   - Region / rank / position / date filters with shareable URL state
   - Sort modes: Index, Similarity, Bin Rank, Top-rank, Selected Share
   - Item highlight (dims non-selected items)
@@ -17,7 +17,7 @@ Features:
   - Upload your own CSV to replace the synthetic demo data
 
 Data schema (synthetic):
-    100 bins × 52 weekly snapshots × 50 ranked positions × 10 items (3-char codes).
+    100 bins × 52 snapshots × 50 ranked positions × 10 items (3-char codes).
     Each bin carries:
         - bin_rank: global rank 1-100 (ties allowed)
         - region:   one of NA, SA, EU, AS, CN, AU (constant per bin)
@@ -596,7 +596,7 @@ max_rank_val = int(data['bin_ranks'].max())
 st.markdown(f"""
 <div class="title-block">
     <div class="title">Ranked Placement Atlas</div>
-    <div class="subtitle">{len(data['bin_names'])} {bin_term}s × {n_pos_total} ranked positions × {n_items} {item_term}s × {len(data['dates'])} weekly snapshots. When multiple dates are selected, each cell shows the modal {item_term} across the range (ties broken by recency).</div>
+    <div class="subtitle">{len(data['bin_names'])} {bin_term}s × {n_pos_total} ranked positions × {n_items} {item_term}s × {len(data['dates'])} snapshots. When multiple dates are selected, each cell shows the modal {item_term} across the range (ties broken by recency).</div>
 </div>
 """, unsafe_allow_html=True)
 
