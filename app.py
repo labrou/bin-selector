@@ -604,6 +604,14 @@ st.markdown(f"""
 col_regions, col_items = st.columns([2, 5])
 
 with col_regions:
+    # Guard: session state may contain region values from a previous dataset or URL params
+    if 'regions_pills' in st.session_state:
+        valid = [r for r in st.session_state['regions_pills'] if r in available_regions]
+        if valid:
+            st.session_state['regions_pills'] = valid
+        else:
+            del st.session_state['regions_pills']
+
     selected_regions = st.pills(
         "Regions",
         available_regions,
