@@ -247,7 +247,7 @@ def dim_color(hex_color, dim_amount=0.88, bg=PANEL_BG):
     return f'#{blended[0]:02x}{blended[1]:02x}{blended[2]:02x}'
 
 
-def compute_majority(items_subset):
+def compute_majority(items_subset, n_items=10):
     """
     items_subset shape: (n_bins, n_weeks, n_positions)
     Returns (majority shape (n_bins, n_positions), share shape (n_bins, n_positions))
@@ -257,8 +257,8 @@ def compute_majority(items_subset):
     if n_weeks == 1:
         return items_subset[:, 0, :].astype(np.int8), np.ones((n_bins, n_positions))
 
-    counts = np.zeros((n_bins, n_positions, 10), dtype=np.int32)
-    for i in range(10):
+    counts = np.zeros((n_bins, n_positions, n_items), dtype=np.int32)
+    for i in range(n_items):
         counts[:, :, i] = (items_subset == i).sum(axis=1)
 
     max_counts = counts.max(axis=2)
@@ -707,7 +707,7 @@ if len(visible_bin_indices) == 0 or len(date_indices) == 0 or len(pos_indices) =
 
 # ── Majority computation ───────────────────────────────────────────────────────
 items_sub = data['items'][visible_bin_indices][:, date_indices, :]
-majority, share = compute_majority(items_sub)   # (n_vis, n_pos_total)
+majority, share = compute_majority(items_sub, n_items)   # (n_vis, n_pos_total)
 
 majority_f = majority[:, pos_indices]
 share_f    = share[:, pos_indices]
