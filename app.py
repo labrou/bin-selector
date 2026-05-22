@@ -65,13 +65,15 @@ PANEL_BG = '#FBFAF5'
 INK      = '#1A1A1A'
 MUTED    = '#6B6B6B'
 
-SORT_DESCRIPTIONS = {
-    "Index":          "Original bin order — no analytical grouping; useful as a stable baseline.",
-    "Similarity":     "Bins sharing the same items at positions 1–4 cluster together, surfacing archetypes as broad horizontal color bands. Default.",
-    "Bin Rank":       "Top = highest-ranked bins (rank 1). Use this when the question is about rank: do top bins share a distinct profile?",
-    "Top-rank":       "Full 50-position lexicographic sort. Position 1 dominates grouping, then position 2, etc. The leftmost column is perfectly grouped; later columns fragment.",
-    "Selected Share": "Top = bins whose top-10 positions are most saturated by the selected items. Only available when 1–9 items are highlighted.",
-}
+def sort_descriptions(bt, it):
+    """Return sort-mode description strings using the active bin/item terminology."""
+    return {
+        "Index":          f"Alphabetical order of {bt} ID — no analytical grouping; stable baseline.",
+        "Similarity":     f"{bt.capitalize()}s sharing the same {it}s at positions 1–4 cluster together, surfacing archetypes as broad horizontal color bands. Default.",
+        "Bin Rank":       f"Top = highest-ranked {bt}s (rank 1). Use this when the question is about rank: do top {bt}s share a distinct profile?",
+        "Top-rank":       f"Full lexicographic sort over all positions. The leftmost column is perfectly grouped; later columns fragment.",
+        "Selected Share": f"Top = {bt}s whose top-10 positions are most saturated by the selected {it}s. Only available when 1–9 {it}s are highlighted.",
+    }
 
 # ============ DATA GENERATION ============
 @st.cache_data
@@ -191,18 +193,12 @@ def load_user_data(file_bytes: bytes, filename: str):
             pos_idx_map[row.position],
         ] = item_to_idx.get(str(row.item), 0)
 
-    # Optional bin_name column → human-readable display name separate from bin_id
-    has_name  = 'bin_name' in df.columns
-    meta_cols = ['bin_rank', 'region'] + (['bin_name'] if has_name else [])
-    bin_meta  = (
+    bin_meta = (
         df.drop_duplicates('bin_id')
         .set_index('bin_id')
-        .loc[bin_ids, meta_cols]
+        .loc[bin_ids, ['bin_rank', 'region']]
     )
-    bin_names_arr = (
-        bin_meta['bin_name'].to_numpy().astype(str) if has_name
-        else np.array(bin_ids)
-    )
+    bin_names_arr = np.array(bin_ids)
 
     user_colors = [COLORS[i % len(COLORS)] for i in range(len(user_items))]
 
@@ -305,14 +301,15 @@ def apply_url_params(dates, item_codes=None):
         st.session_state['auto_fit_cb'] = (p['af'] == '1')
 
 
-def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, regions, item_codes=None):
+def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, regions,
+                  item_codes=None, bin_term='bin'):
     if item_codes is None:
         item_codes = ITEMS
     rows = []
     for j, bname in enumerate(bin_names):
         for i, pos in enumerate(positions):
             rows.append({
-                'bin':            bname,
+                bin_term:         bname,
                 'rank':           int(ranks[j]),
                 'region':         regions[j],
                 'position':       int(pos),
@@ -417,7 +414,7 @@ with st.sidebar:
     uploaded = st.file_uploader(
         "Upload CSV",
         type=["csv"],
-        help="Required: bin_id, date, position, item, bin_rank, region. Optional: bin_name.",
+        help="Required columns: bin_id, date, position, item, bin_rank, region.",
         label_visibility="collapsed",
     )
     if uploaded is not None:
@@ -434,8 +431,8 @@ with st.sidebar:
         st.caption("Using synthetic demo data. Upload a CSV to use your own data.")
         st.caption(
             "Required columns: `bin_id`, `date`, `position`, `item`, `bin_rank`, `region`  \n"
-            "Optional: `bin_name` (display name separate from ID).  \n"
-            "Any item codes accepted — up to 10 unique values."
+            "Any item codes accepted — up to 10 unique values.  \n"
+            "`bin_id` is used as the display name."
         )
 
     st.divider()
@@ -614,13 +611,13 @@ with col_sort:
         st.session_state['sort_radio'] = 'Similarity'
 
     sort_mode = st.radio(
-        "Sort bins by",
+        f"Sort {bin_term}s by",
         sort_options,
         index=sort_options.index(st.session_state.get('sort_radio', 'Similarity')),
         horizontal=True,
         key="sort_radio",
     )
-    st.caption(SORT_DESCRIPTIONS.get(sort_mode, ""))
+    st.caption(sort_descriptions(bin_term, item_term).get(sort_mode, ""))
 
 with col_size:
     sc1, sc2 = st.columns([3, 2])
@@ -791,7 +788,7 @@ exp_c1, exp_c2, _ = st.columns([1, 1, 5])
 
 csv_bytes = make_view_csv(
     bin_names_disp, positions_disp, majority_disp, share_disp,
-    ranks_disp, regions_disp, item_codes=item_codes,
+    ranks_disp, regions_disp, item_codes=item_codes, bin_term=bin_term,
 )
 with exp_c1:
     st.download_button(
@@ -888,7 +885,7 @@ fig.update_yaxes(
     showgrid=False, zeroline=False, range=[0, 1],
     tickvals=[0, 0.5, 1], ticktext=['0%', '50%', '100%'],
     tickfont=dict(size=9, family='IBM Plex Mono', color=MUTED),
-    title=dict(text='Share by bin', font=dict(size=9, family='IBM Plex Mono', color=MUTED)),
+    title=dict(text=f'Share by {bin_term}', font=dict(size=9, family='IBM Plex Mono', color=MUTED)),
     row=2, col=1,
 )
 
@@ -922,7 +919,8 @@ if chart_event and chart_event.selection and chart_event.selection.points:
 
 drill_col, _ = st.columns([2, 3])
 with drill_col:
-    drill_options = ["— select a bin —"] + list(bin_names_disp)
+    _no_sel = f"— select a {bin_term} —"
+    drill_options = [_no_sel] + list(bin_names_disp)
     default_idx   = 0
     if clicked_bin_name and clicked_bin_name in drill_options:
         default_idx = drill_options.index(clicked_bin_name)
@@ -933,7 +931,7 @@ with drill_col:
         key="drill_select",
     )
 
-if drill_bin != "— select a bin —":
+if drill_bin != _no_sel:
     bin_matches = np.where(data['bin_names'] == drill_bin)[0]
     if len(bin_matches) > 0:
         bidx        = bin_matches[0]
@@ -941,7 +939,7 @@ if drill_bin != "— select a bin —":
         bin_region  = data['bin_regions'][bidx]
         bin_weekly  = data['items'][bidx]               # (n_weeks, n_pos_total)
         drill_items = bin_weekly[date_indices][:, pos_indices]  # (n_dates, n_pos)
-        drill_dates = [data['dates'][i] for i in date_indices]
+        drill_dates = [data['dates'][idx] for idx in date_indices]
 
         with st.expander(
             f"Time series · {drill_bin} · Rank {bin_rank_v} · {bin_region}",
@@ -998,7 +996,7 @@ if drill_bin != "— select a bin —":
             for wi, d in enumerate(drill_dates):
                 for pi, pos in enumerate(positions_disp):
                     drill_rows.append({
-                        'bin': drill_bin, 'rank': int(bin_rank_v), 'region': bin_region,
+                        bin_term: drill_bin, 'rank': int(bin_rank_v), 'region': bin_region,
                         'date': d.isoformat(), 'position': int(pos),
                         'item': item_codes[int(drill_items[wi, pi])],
                     })
