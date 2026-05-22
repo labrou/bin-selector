@@ -181,10 +181,21 @@ def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
     df = df[df['item'].isin(kept_items)].copy()
     user_items = sorted(df['item'].unique().tolist())
 
-    unknown_regions = sorted(set(df['region'].astype(str).unique()) - set(REGIONS))
-    if unknown_regions:
-        st.error(f"Unknown regions in CSV: {unknown_regions}. Must be one of: {REGIONS}")
-        return None
+    df['region'] = df['region'].astype(str)
+
+    def _majority_or_random(x):
+        modes = x.mode()
+        return modes.iloc[np.random.randint(len(modes))]
+
+    # Collapse multiple measurements per (bin_id, date, position): majority item, random tiebreak
+    key_cols = ['bin_id', 'date', 'position']
+    dup_counts = df.groupby(key_cols).size()
+    n_dup_keys = int((dup_counts > 1).sum())
+    if n_dup_keys:
+        df = (df.groupby(key_cols, as_index=False)
+                .agg(item=('item', _majority_or_random),
+                     bin_rank=('bin_rank', 'first'),
+                     region=('region', 'first')))
 
     bin_ids   = sorted(df['bin_id'].unique())
     dates     = sorted(df['date'].unique())
@@ -223,6 +234,7 @@ def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
         'dates':       list(dates),
         'item_codes':  user_items,
         'item_colors': user_colors,
+        'n_dup_keys':  n_dup_keys,
     }
 
 
@@ -268,7 +280,7 @@ def apply_url_params(dates, item_codes=None):
         return
 
     if 'regions' in p and 'regions_pills' not in st.session_state:
-        val = [r for r in p['regions'].split(',') if r in REGIONS]
+        val = [r for r in p['regions'].split(',') if r]
         if val:
             st.session_state['regions_pills'] = val
 
@@ -461,6 +473,12 @@ with st.sidebar:
                 f"{uploaded.name}\n\n"
                 f"{n_b} bins · {n_p} positions · {n_w} weeks · {n_it} items"
             )
+            _n_dup = data.get('n_dup_keys', 0)
+            if _n_dup:
+                st.warning(
+                    f"{_n_dup:,} (bin, date, position) combinations had multiple rows "
+                    f"— kept the most frequent item for each."
+                )
     else:
         st.caption("Using synthetic demo data. Upload a CSV to use your own data.")
         st.caption(
@@ -521,10 +539,18 @@ if st.session_state.get('_item_sig') != _item_sig:
     st.session_state.pop('items_pills', None)
     st.session_state['_item_sig'] = _item_sig
 
+available_regions = sorted(np.unique(data['bin_regions']).tolist())
+
+# Reset regions_pills when the region vocabulary changes (e.g., new CSV uploaded)
+_region_sig = ','.join(available_regions)
+if st.session_state.get('_region_sig') != _region_sig:
+    st.session_state.pop('regions_pills', None)
+    st.session_state['_region_sig'] = _region_sig
+
 # Per-item pill colors via JS — uses current item_colors so custom uploads work.
-# Discriminator: skip button groups that contain a region label (always 6 buttons).
+# Discriminator: skip button groups that contain a region label.
 _colors_json = json.dumps(item_colors)
-_regions_json = json.dumps(REGIONS)
+_regions_json = json.dumps(available_regions)
 components.html(
     f"""<script>
 (function(){{
@@ -580,9 +606,9 @@ col_regions, col_items = st.columns([2, 5])
 with col_regions:
     selected_regions = st.pills(
         "Regions",
-        REGIONS,
+        available_regions,
         selection_mode="multi",
-        default=REGIONS,
+        default=available_regions,
         key="regions_pills",
     )
 
@@ -662,7 +688,7 @@ with col_size:
         auto_fit = st.checkbox("Auto-fit", value=True, key="auto_fit_cb")
 
 # ── Filtering ─────────────────────────────────────────────────────────────────
-regions_active = selected_regions if selected_regions else REGIONS
+regions_active = selected_regions if selected_regions else available_regions
 
 in_region = np.isin(data['bin_regions'], regions_active)
 in_rank   = (data['bin_ranks'] >= rank_range[0]) & (data['bin_ranks'] <= rank_range[1])
