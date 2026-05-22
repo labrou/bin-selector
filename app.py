@@ -146,8 +146,22 @@ def generate_data():
 
 
 @st.cache_data
-def load_user_data(file_bytes: bytes, filename: str):
-    """Parse an uploaded CSV into the app data schema."""
+def discover_items(file_bytes: bytes, filename: str):
+    """Fast first pass: parse only enough to return item vocabulary and counts.
+    Returns (items_by_freq, counts_dict) — items sorted descending by frequency."""
+    try:
+        df = pd.read_csv(io.BytesIO(file_bytes), usecols=['item'])
+    except Exception:
+        return [], {}
+    df['item'] = df['item'].astype(str)
+    vc = df['item'].value_counts()
+    return vc.index.tolist(), vc.to_dict()
+
+
+@st.cache_data
+def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
+    """Parse an uploaded CSV, keeping only the caller-specified item vocabulary.
+    kept_items is part of the cache key so different selections cache independently."""
     try:
         df = pd.read_csv(io.BytesIO(file_bytes))
     except Exception as exc:
@@ -164,13 +178,7 @@ def load_user_data(file_bytes: bytes, filename: str):
     df['item']   = df['item'].astype(str)
     df['bin_id'] = df['bin_id'].astype(str)
 
-    # Accept any item codes up to N_MAX_ITEMS; if more, keep the most frequent
-    all_items    = sorted(df['item'].unique().tolist())
-    dropped_items: list[str] = []
-    if len(all_items) > N_MAX_ITEMS:
-        top = df['item'].value_counts().nlargest(N_MAX_ITEMS).index.tolist()
-        dropped_items = sorted(set(all_items) - set(top))
-        df = df[df['item'].isin(top)].copy()
+    df = df[df['item'].isin(kept_items)].copy()
     user_items = sorted(df['item'].unique().tolist())
 
     unknown_regions = sorted(set(df['region'].astype(str).unique()) - set(REGIONS))
@@ -204,19 +212,17 @@ def load_user_data(file_bytes: bytes, filename: str):
         .set_index('bin_id')
         .loc[bin_ids, ['bin_rank', 'region']]
     )
-    bin_names_arr = np.array(bin_ids)
 
     user_colors = [COLORS[i % len(COLORS)] for i in range(len(user_items))]
 
     return {
-        'items':         items_array,
-        'bin_ranks':     bin_meta['bin_rank'].to_numpy().astype(int),
-        'bin_regions':   bin_meta['region'].to_numpy().astype(str),
-        'bin_names':     bin_names_arr,
-        'dates':         list(dates),
-        'item_codes':    user_items,
-        'item_colors':   user_colors,
-        'dropped_items': dropped_items,
+        'items':       items_array,
+        'bin_ranks':   bin_meta['bin_rank'].to_numpy().astype(int),
+        'bin_regions': bin_meta['region'].to_numpy().astype(str),
+        'bin_names':   np.array(bin_ids),
+        'dates':       list(dates),
+        'item_codes':  user_items,
+        'item_colors': user_colors,
     }
 
 
@@ -424,7 +430,29 @@ with st.sidebar:
         label_visibility="collapsed",
     )
     if uploaded is not None:
-        user_data = load_user_data(uploaded.getvalue(), uploaded.name)
+        items_by_freq, item_counts = discover_items(uploaded.getvalue(), uploaded.name)
+
+        if len(items_by_freq) > N_MAX_ITEMS:
+            st.markdown(
+                f'<div style="font-family:IBM Plex Mono,monospace;font-size:10px;'
+                f'color:{MUTED};margin:6px 0 2px;">Your data has {len(items_by_freq)} unique '
+                f'item values — select up to {N_MAX_ITEMS} to include.</div>',
+                unsafe_allow_html=True,
+            )
+            chosen = st.multiselect(
+                "Items to include",
+                options=items_by_freq,          # ordered by descending frequency
+                default=items_by_freq[:N_MAX_ITEMS],
+                format_func=lambda x: f"{x}  ({item_counts[x]:,})",
+                max_selections=N_MAX_ITEMS,
+                label_visibility="collapsed",
+                key="item_selector",
+            )
+            kept = tuple(sorted(chosen)) if chosen else tuple(sorted(items_by_freq[:N_MAX_ITEMS]))
+        else:
+            kept = tuple(sorted(items_by_freq))
+
+        user_data = load_user_data(uploaded.getvalue(), uploaded.name, kept)
         if user_data is not None:
             data = user_data
             n_b, n_w, n_p = data['items'].shape
@@ -433,18 +461,11 @@ with st.sidebar:
                 f"{uploaded.name}\n\n"
                 f"{n_b} bins · {n_p} positions · {n_w} weeks · {n_it} items"
             )
-            if user_data.get('dropped_items'):
-                dropped = user_data['dropped_items']
-                st.warning(
-                    f"Your data had more than {N_MAX_ITEMS} unique item values. "
-                    f"Kept the {N_MAX_ITEMS} most frequent; "
-                    f"dropped **{len(dropped)}**: {', '.join(dropped)}."
-                )
     else:
         st.caption("Using synthetic demo data. Upload a CSV to use your own data.")
         st.caption(
             "Required columns: `bin_id`, `date`, `position`, `item`, `bin_rank`, `region`  \n"
-            f"Up to {N_MAX_ITEMS} unique item values (most frequent kept if exceeded).  \n"
+            f"Up to {N_MAX_ITEMS} items shown; if more exist you choose which to keep.  \n"
             "`bin_id` is used as the display name."
         )
 
