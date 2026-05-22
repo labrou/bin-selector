@@ -99,7 +99,8 @@ def generate_data():
     bin_regions     = np.array(rng.choice(REGIONS, NUM_BINS))
     archetype_rank_center = np.array([15, 35, 50, 70, 50])
     rank_noise      = (rng.random(NUM_BINS) + rng.random(NUM_BINS) + rng.random(NUM_BINS) - 1.5) * 18
-    bin_ranks       = np.clip(np.round(archetype_rank_center[bin_archetypes] + rank_noise), 1, 100).astype(int)
+    _raw_scores     = archetype_rank_center[bin_archetypes] + rank_noise
+    bin_ranks       = (np.argsort(np.argsort(_raw_scores)) + 1).astype(int)  # dense 1..NUM_BINS
 
     has_regime      = rng.random(NUM_BINS) < 0.20
     regime_weeks    = rng.integers(15, 38, NUM_BINS)
