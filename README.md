@@ -1,11 +1,34 @@
 # Ranked Placement Atlas
 
+**Live app:** https://bin-selector.streamlit.app/
+
 An interactive Streamlit visualization for exploring how a small categorical
 vocabulary (items) is distributed across a large set of ordered slots
 (positions) over many groupings (bins), with optional aggregation over time.
 
 The default synthetic dataset is **100 bins × 50 positions × 10 items × 52
 weekly snapshots**, but the app generalizes to any data with that shape.
+
+---
+
+## What can you visualize with this?
+
+The atlas is domain-agnostic. Anything that fits the shape — *many ordered
+containers, each filled with one of a small set of categories, measured
+repeatedly over time* — is a candidate. A few concrete examples:
+
+| Your "bins" | Your "positions" | Your "items" | Question you can answer |
+|---|---|---|---|
+| **Retail stores / markets** | Shelf slots ranked 1–50 | Product SKUs or categories | Do top-ranked stores carry a distinct assortment in their primary slots? Which stores share a profile? |
+| **Search result pages** | Organic rank 1–20 | Content type or brand | Which brands dominate position 1 across markets? Has the composition shifted week over week? |
+| **Streaming playlists** | Playlist position 1–30 | Genre or mood tag | Do high-engagement playlists cluster into archetypal shape patterns? |
+| **Ad auction logs** | Ad slot rank 1–10 | Advertiser category | Which categories saturate the top slots? Does that vary by publisher region? |
+| **Sports rosters** | Roster position 1–25 | Player role or stat tier | How do championship rosters differ from bottom-table ones at each roster slot? |
+| **Feed / recommendation engines** | Feed slot 1–50 | Content category | How does position-1 content type vary across user cohorts or dates? |
+
+Upload your own CSV (sidebar → Data source) to replace the synthetic demo
+with real data. Use the **Labels** panel in the sidebar to rename "bin" and
+"item" to whatever fits your domain.
 
 ---
 
@@ -530,7 +553,7 @@ To use this app with real data, replace `generate_data()` with a function
 that loads your data and returns a dictionary matching the schema above.
 
 A minimal example loading from a CSV with columns
-`bin_id, date, position, item, bin_rank, region`:
+`bin_id, date, position, item, bin_rank, region` (plus optional `bin_name`):
 
 ```python
 import pandas as pd
@@ -570,8 +593,20 @@ def generate_data():
     }
 ```
 
-You may also need to adjust the `ITEMS`, `COLORS`, `REGIONS`, `NUM_BINS`,
-`NUM_POSITIONS`, and `NUM_WEEKS` constants to match your data.
+The CSV upload in the sidebar handles this automatically. Supported columns:
+
+| Column | Required | Notes |
+|---|---|---|
+| `bin_id` | ✓ | Identifier; used as display name if `bin_name` absent |
+| `date` | ✓ | Any format parseable by `pd.to_datetime` |
+| `position` | ✓ | Integer rank within the bin |
+| `item` | ✓ | Any string code — up to 10 unique values |
+| `bin_rank` | ✓ | Global rank of the bin (integer) |
+| `region` | ✓ | One of: NA, SA, EU, AS, CN, AU |
+| `bin_name` | — | Optional human-readable display name for the bin |
+
+Item codes can be anything (product names, category labels, emoji, etc.);
+you are no longer restricted to the synthetic 10-item vocabulary.
 
 ---
 

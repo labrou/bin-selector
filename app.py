@@ -135,6 +135,8 @@ def generate_data():
         'bin_regions': bin_regions,
         'bin_names':   np.array(BIN_NAMES),
         'dates':       dates,
+        'item_codes':  list(ITEMS),
+        'item_colors': list(COLORS),
     }
 
 
@@ -153,27 +155,30 @@ def load_user_data(file_bytes: bytes, filename: str):
         st.error(f"CSV is missing columns: {', '.join(sorted(missing))}")
         return None
 
-    df['date'] = pd.to_datetime(df['date']).dt.date
+    df['date']   = pd.to_datetime(df['date']).dt.date
+    df['item']   = df['item'].astype(str)
+    df['bin_id'] = df['bin_id'].astype(str)
 
-    unknown_items = sorted(set(df['item'].unique()) - set(ITEMS))
-    if unknown_items:
-        st.error(f"Unknown item codes in CSV: {unknown_items}. Must be one of: {ITEMS}")
+    # Accept any item codes — just cap at 10 unique values
+    user_items = sorted(df['item'].unique().tolist())
+    if len(user_items) > 10:
+        st.error(f"CSV has {len(user_items)} unique item values; maximum supported is 10.")
         return None
 
-    unknown_regions = sorted(set(df['region'].unique()) - set(REGIONS))
+    unknown_regions = sorted(set(df['region'].astype(str).unique()) - set(REGIONS))
     if unknown_regions:
         st.error(f"Unknown regions in CSV: {unknown_regions}. Must be one of: {REGIONS}")
         return None
 
-    bin_ids  = sorted(df['bin_id'].unique())
-    dates    = sorted(df['date'].unique())
+    bin_ids   = sorted(df['bin_id'].unique())
+    dates     = sorted(df['date'].unique())
     positions = sorted(df['position'].unique())
 
     n_bins  = len(bin_ids)
     n_weeks = len(dates)
     n_pos   = len(positions)
 
-    item_to_idx  = {code: i for i, code in enumerate(ITEMS)}
+    item_to_idx  = {code: i for i, code in enumerate(user_items)}
     bin_idx_map  = {b: i for i, b in enumerate(bin_ids)}
     date_idx_map = {d: i for i, d in enumerate(dates)}
     pos_idx_map  = {p: i for i, p in enumerate(positions)}
@@ -181,23 +186,34 @@ def load_user_data(file_bytes: bytes, filename: str):
     items_array = np.zeros((n_bins, n_weeks, n_pos), dtype=np.int8)
     for row in df.itertuples(index=False):
         items_array[
-            bin_idx_map[row.bin_id],
+            bin_idx_map[str(row.bin_id)],
             date_idx_map[row.date],
             pos_idx_map[row.position],
-        ] = item_to_idx.get(row.item, 0)
+        ] = item_to_idx.get(str(row.item), 0)
 
-    bin_meta = (
+    # Optional bin_name column → human-readable display name separate from bin_id
+    has_name  = 'bin_name' in df.columns
+    meta_cols = ['bin_rank', 'region'] + (['bin_name'] if has_name else [])
+    bin_meta  = (
         df.drop_duplicates('bin_id')
         .set_index('bin_id')
-        .loc[bin_ids, ['bin_rank', 'region']]
+        .loc[bin_ids, meta_cols]
     )
+    bin_names_arr = (
+        bin_meta['bin_name'].to_numpy().astype(str) if has_name
+        else np.array(bin_ids)
+    )
+
+    user_colors = [COLORS[i % len(COLORS)] for i in range(len(user_items))]
 
     return {
         'items':       items_array,
         'bin_ranks':   bin_meta['bin_rank'].to_numpy().astype(int),
-        'bin_regions': bin_meta['region'].to_numpy(),
-        'bin_names':   np.array([str(b) for b in bin_ids]),
+        'bin_regions': bin_meta['region'].to_numpy().astype(str),
+        'bin_names':   bin_names_arr,
         'dates':       list(dates),
+        'item_codes':  user_items,
+        'item_colors': user_colors,
     }
 
 
@@ -234,8 +250,10 @@ def compute_majority(items_subset):
     return majority, max_counts / n_weeks
 
 
-def apply_url_params(dates):
+def apply_url_params(dates, item_codes=None):
     """On a fresh session, seed widget keys from URL query params."""
+    if item_codes is None:
+        item_codes = ITEMS
     p = st.query_params
     if not p:
         return
@@ -246,7 +264,7 @@ def apply_url_params(dates):
             st.session_state['regions_pills'] = val
 
     if 'items' in p and 'items_pills' not in st.session_state:
-        st.session_state['items_pills'] = [i for i in p['items'].split(',') if i in ITEMS]
+        st.session_state['items_pills'] = [i for i in p['items'].split(',') if i in item_codes]
 
     if 'ds' in p and 'de' in p and 'wk_slider' not in st.session_state:
         try:
@@ -287,7 +305,9 @@ def apply_url_params(dates):
         st.session_state['auto_fit_cb'] = (p['af'] == '1')
 
 
-def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, regions):
+def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, regions, item_codes=None):
+    if item_codes is None:
+        item_codes = ITEMS
     rows = []
     for j, bname in enumerate(bin_names):
         for i, pos in enumerate(positions):
@@ -296,7 +316,7 @@ def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, regions):
                 'rank':           int(ranks[j]),
                 'region':         regions[j],
                 'position':       int(pos),
-                'item':           ITEMS[int(items_grid[j, i])],
+                'item':           item_codes[int(items_grid[j, i])],
                 'majority_share': round(float(share_grid[j, i]), 4),
             })
     return pd.DataFrame(rows).to_csv(index=False).encode()
@@ -384,41 +404,6 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# Per-item pill colors via JS (MutationObserver; setInterval fallback for cross-origin).
-# Discriminator: items group has exactly len(ITEMS)=10 buttons; regions group has 6.
-_colors_json = json.dumps(COLORS)
-components.html(
-    f"""<script>
-(function(){{
-  var C={_colors_json}, BG="{BG}", N=C.length;
-  function go(){{
-    try{{
-      var gs=window.parent.document.querySelectorAll('[data-baseweb="button-group"]');
-      for(var i=0;i<gs.length;i++){{
-        var bs=gs[i].querySelectorAll('button');
-        if(bs.length!==N) continue;
-        for(var j=0;j<bs.length;j++){{
-          var b=bs[j];
-          var sel=b.getAttribute('aria-pressed')==='true'||b.getAttribute('aria-checked')==='true';
-          b.style.setProperty('color', sel ? BG : C[j], 'important');
-          b.style.setProperty('border-color', C[j], 'important');
-          b.style.setProperty('background-color', sel ? C[j] : '', 'important');
-        }}
-      }}
-    }}catch(e){{}}
-  }}
-  go();
-  try{{
-    new MutationObserver(go).observe(
-      window.parent.document.body,
-      {{subtree:true,childList:true,attributes:true,attributeFilter:['aria-pressed','aria-checked']}}
-    );
-  }}catch(e){{ setInterval(go,200); }}
-}})();
-</script>""",
-    height=0,
-)
-
 # ── Data loading ──────────────────────────────────────────────────────────────
 data = generate_data()
 
@@ -432,7 +417,7 @@ with st.sidebar:
     uploaded = st.file_uploader(
         "Upload CSV",
         type=["csv"],
-        help="Columns: bin_id, date, position, item, bin_rank, region",
+        help="Required: bin_id, date, position, item, bin_rank, region. Optional: bin_name.",
         label_visibility="collapsed",
     )
     if uploaded is not None:
@@ -440,13 +425,28 @@ with st.sidebar:
         if user_data is not None:
             data = user_data
             n_b, n_w, n_p = data['items'].shape
+            n_it = len(data['item_codes'])
             st.success(
                 f"{uploaded.name}\n\n"
-                f"{n_b} bins · {n_p} positions · {n_w} weeks"
+                f"{n_b} bins · {n_p} positions · {n_w} weeks · {n_it} items"
             )
     else:
         st.caption("Using synthetic demo data. Upload a CSV to use your own data.")
-        st.caption("Expected columns: `bin_id`, `date`, `position`, `item`, `bin_rank`, `region`")
+        st.caption(
+            "Required columns: `bin_id`, `date`, `position`, `item`, `bin_rank`, `region`  \n"
+            "Optional: `bin_name` (display name separate from ID).  \n"
+            "Any item codes accepted — up to 10 unique values."
+        )
+
+    st.divider()
+    st.markdown(
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:10px;'
+        f'letter-spacing:0.18em;text-transform:uppercase;color:{MUTED};'
+        f'margin-bottom:8px;">Labels</div>',
+        unsafe_allow_html=True,
+    )
+    bin_term  = st.text_input("Bins are called", "bin",  key="bin_term").strip()  or "bin"
+    item_term = st.text_input("Items are called", "item", key="item_term").strip() or "item"
 
     st.divider()
     st.markdown(
@@ -479,8 +479,58 @@ function copyAtlasLink(){{
     )
     st.caption("The link encodes your current filters, sort mode, and date range.")
 
+# ── Extract item vocabulary and threading variables ───────────────────────────
+item_codes  = data.get('item_codes', list(ITEMS))
+item_colors = data.get('item_colors', list(COLORS))
+n_items     = len(item_codes)
+
+# Reset items_pills when the item vocabulary changes (e.g., new CSV uploaded)
+_item_sig = ','.join(item_codes)
+if st.session_state.get('_item_sig') != _item_sig:
+    st.session_state.pop('items_pills', None)
+    st.session_state['_item_sig'] = _item_sig
+
+# Per-item pill colors via JS — uses current item_colors so custom uploads work.
+# Discriminator: skip button groups that contain a region label (always 6 buttons).
+_colors_json = json.dumps(item_colors)
+_regions_json = json.dumps(REGIONS)
+components.html(
+    f"""<script>
+(function(){{
+  var C={_colors_json}, BG="{BG}", N=C.length, R={_regions_json};
+  function go(){{
+    try{{
+      var gs=window.parent.document.querySelectorAll('[data-baseweb="button-group"]');
+      for(var i=0;i<gs.length;i++){{
+        var bs=gs[i].querySelectorAll('button');
+        if(bs.length!==N) continue;
+        // Skip the regions group (contains known region labels)
+        var texts=Array.from(bs).map(function(b){{return b.textContent.trim();}});
+        if(R.some(function(r){{return texts.indexOf(r)>=0;}})) continue;
+        for(var j=0;j<bs.length;j++){{
+          var b=bs[j];
+          var sel=b.getAttribute('aria-pressed')==='true'||b.getAttribute('aria-checked')==='true';
+          b.style.setProperty('color', sel ? BG : C[j], 'important');
+          b.style.setProperty('border-color', C[j], 'important');
+          b.style.setProperty('background-color', sel ? C[j] : '', 'important');
+        }}
+      }}
+    }}catch(e){{}}
+  }}
+  go();
+  try{{
+    new MutationObserver(go).observe(
+      window.parent.document.body,
+      {{subtree:true,childList:true,attributes:true,attributeFilter:['aria-pressed','aria-checked']}}
+    );
+  }}catch(e){{ setInterval(go,200); }}
+}})();
+</script>""",
+    height=0,
+)
+
 # Apply URL query params to session state (only on fresh sessions)
-apply_url_params(data['dates'])
+apply_url_params(data['dates'], item_codes)
 
 n_pos_total  = data['items'].shape[2]
 max_rank_val = int(data['bin_ranks'].max())
@@ -489,7 +539,7 @@ max_rank_val = int(data['bin_ranks'].max())
 st.markdown(f"""
 <div class="title-block">
     <div class="title">Ranked Placement Atlas</div>
-    <div class="subtitle">{len(data['bin_names'])} bins × {n_pos_total} ranked positions × {len(ITEMS)} items × {len(data['dates'])} weekly snapshots. When multiple dates are selected, each cell shows the modal item across the range (ties broken by recency).</div>
+    <div class="subtitle">{len(data['bin_names'])} {bin_term}s × {n_pos_total} ranked positions × {n_items} {item_term}s × {len(data['dates'])} weekly snapshots. When multiple dates are selected, each cell shows the modal {item_term} across the range (ties broken by recency).</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -507,12 +557,12 @@ with col_regions:
 
 with col_items:
     if 'items_pills' not in st.session_state:
-        st.session_state['items_pills'] = list(ITEMS)
+        st.session_state['items_pills'] = list(item_codes)
 
     bc1, bc2, _ = st.columns([1, 1, 6])
     with bc1:
         if st.button("Select all", use_container_width=True, key="btn_all"):
-            st.session_state['items_pills'] = list(ITEMS)
+            st.session_state['items_pills'] = list(item_codes)
             st.rerun()
     with bc2:
         if st.button("Clear", use_container_width=True, key="btn_clear"):
@@ -520,8 +570,8 @@ with col_items:
             st.rerun()
 
     selected_items = st.pills(
-        "Items (toggle to highlight; unselected items dim)",
-        ITEMS,
+        f"{item_term.capitalize()}s (toggle to highlight; unselected {item_term}s dim)",
+        item_codes,
         selection_mode="multi",
         key="items_pills",
     )
@@ -540,7 +590,7 @@ with col_date:
 
 with col_rank:
     rank_range = st.slider(
-        "Bin rank range", 1, max_rank_val, (1, max_rank_val),
+        f"{bin_term.capitalize()} rank range", 1, max_rank_val, (1, max_rank_val),
         key="rank_slider",
     )
 
@@ -556,7 +606,7 @@ col_sort, col_size = st.columns([3, 2])
 n_sel = len(selected_items) if selected_items else 0
 with col_sort:
     sort_options = ["Index", "Similarity", "Bin Rank", "Top-rank"]
-    if 0 < n_sel < len(ITEMS):
+    if 0 < n_sel < n_items:
         sort_options.append("Selected Share")
 
     # If stored sort is no longer valid (e.g. Selected Share removed), reset
@@ -619,7 +669,7 @@ elif sort_mode == "Top-rank":
     keys  = [''.join(f'{int(x):x}' for x in row) for row in majority]
     order = np.argsort(keys, kind='stable')
 elif sort_mode == "Selected Share":
-    sel_idx_set = [ITEMS.index(i) for i in selected_items]
+    sel_idx_set = [item_codes.index(i) for i in selected_items]
     top10       = majority[:, :10]
     share_count = np.isin(top10, sel_idx_set).sum(axis=1)
     order       = np.argsort(-share_count, kind='stable')
@@ -634,19 +684,19 @@ n_show_bins = len(ordered_bin_indices)
 n_show_pos  = len(pos_indices)
 
 # ── Colorscale ────────────────────────────────────────────────────────────────
-sel_idx_set = set(ITEMS.index(i) for i in selected_items) if selected_items else set()
-all_or_none = (len(sel_idx_set) == 0) or (len(sel_idx_set) == len(ITEMS))
+sel_idx_set = set(item_codes.index(i) for i in selected_items) if selected_items else set()
+all_or_none = (len(sel_idx_set) == 0) or (len(sel_idx_set) == n_items)
 
 def effective_color(i):
     if all_or_none or i in sel_idx_set:
-        return COLORS[i]
-    return dim_color(COLORS[i], 0.88)
+        return item_colors[i]
+    return dim_color(item_colors[i], 0.88)
 
 colorscale = []
-for i in range(10):
+for i in range(n_items):
     c = effective_color(i)
-    colorscale.append([i / 10, c])
-    colorscale.append([(i + 1) / 10, c])
+    colorscale.append([i / n_items, c])
+    colorscale.append([(i + 1) / n_items, c])
 
 # ── Sizing ────────────────────────────────────────────────────────────────────
 container_w = 900
@@ -680,12 +730,12 @@ customdata[:, :, 2] = regions_disp[:, None]
 customdata[:, :, 3] = positions_disp[None, :].astype(int)
 customdata[:, :, 4] = share_disp.astype(float)
 
-text_grid = np.array(ITEMS)[majority_disp.astype(int)]
+text_grid = np.array(item_codes)[majority_disp.astype(int)]
 z         = majority_disp.astype(float)
 
 # ── Legend ────────────────────────────────────────────────────────────────────
 legend_parts = []
-for idx, (item, color) in enumerate(zip(ITEMS, COLORS)):
+for idx, (item, _) in enumerate(zip(item_codes, item_colors)):
     c    = effective_color(idx)
     dim  = not (all_or_none or idx in sel_idx_set)
     text_color = MUTED if dim else INK
@@ -711,13 +761,13 @@ if multi_date:
     d0 = date_range[0].strftime("%b %d, %Y")
     d1 = date_range[1].strftime("%b %d, %Y")
     mode_sentence = (
-        f"Each cell shows the <b>most frequent item</b> across the {date_count} selected snapshots "
+        f"Each cell shows the <b>most frequent {item_term}</b> across the {date_count} selected snapshots "
         f"({d0} → {d1}), with ties broken by the most recent week. "
-        f"Hover to see the majority share — how often that item actually held the position."
+        f"Hover to see the majority share — how often that {item_term} actually held the position."
     )
 else:
     d0 = date_range[0].strftime("%b %d, %Y")
-    mode_sentence = f"Showing a single snapshot ({d0}): each cell is the item at that position for that week."
+    mode_sentence = f"Showing a single snapshot ({d0}): each cell is the {item_term} at that position for that week."
 
 summary_html = f"""
 <div style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#4A4A4A;
@@ -726,7 +776,7 @@ summary_html = f"""
     <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;
                 letter-spacing:0.14em;text-transform:uppercase;color:{MUTED};
                 margin-bottom:4px;">View summary</div>
-    <b>{n_show_bins}</b> bin{'s' if n_show_bins != 1 else ''} ·
+    <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
     <b>{n_show_pos}</b> position{'s' if n_show_pos != 1 else ''} ·
     <b>{date_count}</b> weekly snapshot{'s' if multi_date else ''} ·
     regions: <b>{', '.join(sorted(set(regions_active)))}</b> ·
@@ -741,7 +791,7 @@ exp_c1, exp_c2, _ = st.columns([1, 1, 5])
 
 csv_bytes = make_view_csv(
     bin_names_disp, positions_disp, majority_disp, share_disp,
-    ranks_disp, regions_disp,
+    ranks_disp, regions_disp, item_codes=item_codes,
 )
 with exp_c1:
     st.download_button(
@@ -767,7 +817,7 @@ fig.add_trace(
         y=list(bin_names_disp),
         colorscale=colorscale,
         zmin=0,
-        zmax=10,
+        zmax=n_items,
         showscale=False,
         customdata=customdata,
         text=text_grid,
@@ -783,18 +833,18 @@ fig.add_trace(
     row=1, col=1,
 )
 
-pos_dist = np.stack([(majority_disp == i).sum(axis=0) for i in range(10)], axis=1)
+pos_dist = np.stack([(majority_disp == i).sum(axis=0) for i in range(n_items)], axis=1)
 
-for item_idx in range(10):
+for item_idx in range(n_items):
     fig.add_trace(
         go.Bar(
             x=positions_disp,
             y=pos_dist[:, item_idx] / max(n_show_bins, 1),
             orientation='v',
             marker=dict(color=effective_color(item_idx), line=dict(width=0)),
-            name=ITEMS[item_idx],
+            name=item_codes[item_idx],
             showlegend=False,
-            hovertemplate=f"<b>{ITEMS[item_idx]}</b>: %{{y:.0%}} at pos %{{x}}<extra></extra>",
+            hovertemplate=f"<b>{item_codes[item_idx]}</b>: %{{y:.0%}} at pos %{{x}}<extra></extra>",
         ),
         row=2, col=1,
     )
@@ -877,7 +927,7 @@ with drill_col:
     if clicked_bin_name and clicked_bin_name in drill_options:
         default_idx = drill_options.index(clicked_bin_name)
     drill_bin = st.selectbox(
-        "Drill down — bin time series",
+        f"Drill down — {bin_term} time series",
         drill_options,
         index=default_idx,
         key="drill_select",
@@ -898,7 +948,7 @@ if drill_bin != "— select a bin —":
             expanded=True,
         ):
             mini_z    = drill_items.T.astype(float)           # (n_pos, n_dates)
-            mini_text = np.array(ITEMS)[drill_items.T.astype(int)]
+            mini_text = np.array(item_codes)[drill_items.T.astype(int)]
             x_labels  = [d.strftime("%b %d") for d in drill_dates]
             y_labels  = list(positions_disp)
 
@@ -907,7 +957,7 @@ if drill_bin != "— select a bin —":
                 x=x_labels,
                 y=y_labels,
                 colorscale=colorscale,
-                zmin=0, zmax=10,
+                zmin=0, zmax=n_items,
                 showscale=False,
                 text=mini_text,
                 hovertemplate=(
@@ -950,7 +1000,7 @@ if drill_bin != "— select a bin —":
                     drill_rows.append({
                         'bin': drill_bin, 'rank': int(bin_rank_v), 'region': bin_region,
                         'date': d.isoformat(), 'position': int(pos),
-                        'item': ITEMS[int(drill_items[wi, pi])],
+                        'item': item_codes[int(drill_items[wi, pi])],
                     })
             drill_csv = pd.DataFrame(drill_rows).to_csv(index=False).encode()
             st.download_button(
