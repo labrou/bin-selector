@@ -665,6 +665,9 @@ with col_date:
     )
 
 with col_rank:
+    _rk = st.session_state.get('rank_slider')
+    if _rk is not None and (_rk[0] < min_rank_val or _rk[1] > max_rank_val or _rk[0] > _rk[1]):
+        del st.session_state['rank_slider']
     rank_range = st.slider(
         f"{bin_term.capitalize()} rank range", min_rank_val, max_rank_val, (min_rank_val, max_rank_val),
         key="rank_slider",
