@@ -162,9 +162,8 @@ def discover_items(file_bytes: bytes, filename: str):
 
 
 @st.cache_data
-def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
-    """Parse an uploaded CSV, keeping only the caller-specified item vocabulary.
-    kept_items is part of the cache key so different selections cache independently."""
+def load_user_data(file_bytes: bytes, filename: str):
+    """Parse an uploaded CSV. All items are kept; colour assignment happens in the UI."""
     try:
         df = pd.read_csv(io.BytesIO(file_bytes))
     except Exception as exc:
@@ -185,11 +184,8 @@ def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
     # Composite key: a bin_id that appears in multiple regions becomes distinct rows
     df['bin_key'] = df['bin_id'] + ' · ' + df['region']
 
-    kept_set = set(kept_items)
-    df['item'] = df['item'].apply(lambda x: x if x in kept_set else OTHER_LABEL)
-    user_items = sorted(i for i in df['item'].unique().tolist() if i != OTHER_LABEL)
-    if OTHER_LABEL in df['item'].values:
-        user_items.append(OTHER_LABEL)  # always last
+    # All items kept; order by descending frequency so callers can slice for colours
+    user_items = df['item'].value_counts().index.tolist()
 
     def _majority_or_random(x):
         modes = x.mode()
@@ -224,7 +220,7 @@ def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
             bin_idx_map[row.bin_key],
             date_idx_map[row.date],
             pos_idx_map[row.position],
-        ] = item_to_idx.get(str(row.item), 0)
+        ] = item_to_idx.get(str(row.item), -1)
 
     bin_meta = (
         df.drop_duplicates('bin_key')
@@ -232,18 +228,13 @@ def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
         .loc[bin_keys, ['bin_rank', 'region']]
     )
 
-    user_colors = [COLORS[i % len(COLORS)] for i in range(len(user_items))]
-    if user_items and user_items[-1] == OTHER_LABEL:
-        user_colors[-1] = OTHER_COLOR
-
     return {
         'items':       items_array,
         'bin_ranks':   bin_meta['bin_rank'].to_numpy().astype(int),
         'bin_regions': bin_meta['region'].to_numpy().astype(str),
         'bin_names':   np.array(bin_keys),
         'dates':       list(dates),
-        'item_codes':  user_items,
-        'item_colors': user_colors,
+        'item_codes':  user_items,   # all items, frequency-ordered; no colours here
         'n_dup_keys':  n_dup_keys,
     }
 
@@ -303,7 +294,7 @@ def apply_url_params(dates, item_codes=None):
             st.session_state['regions_pills'] = val
 
     if 'items' in p and 'items_pills' not in st.session_state:
-        st.session_state['items_pills'] = [i for i in p['items'].split(',') if i in item_codes]
+        st.session_state['items_pills'] = [i for i in p['items'].split(',') if i in pill_items]
 
     if 'ds' in p and 'de' in p and 'wk_slider' not in st.session_state:
         try:
@@ -458,6 +449,7 @@ with st.sidebar:
         help="Required columns: bin_id, date, position, item, bin_rank, region.",
         label_visibility="collapsed",
     )
+    colored_items = None   # set below when file is uploaded
     if uploaded is not None:
         items_by_freq, item_counts = discover_items(uploaded.getvalue(), uploaded.name)
 
@@ -465,31 +457,31 @@ with st.sidebar:
             st.markdown(
                 f'<div style="font-family:IBM Plex Mono,monospace;font-size:10px;'
                 f'color:{MUTED};margin:6px 0 2px;">Your data has {len(items_by_freq)} unique '
-                f'item values — select up to {N_MAX_USER_ITEMS}; the rest are grouped as '
-                f'{OTHER_LABEL}.</div>',
+                f'item values. Pick up to {N_MAX_USER_ITEMS} to give distinct colours; '
+                f'the rest show as gray but still display their real label.</div>',
                 unsafe_allow_html=True,
             )
             chosen = st.multiselect(
-                "Items to include",
-                options=items_by_freq,          # ordered by descending frequency
+                "Items to colour distinctly",
+                options=items_by_freq,
                 default=items_by_freq[:N_MAX_USER_ITEMS],
                 format_func=lambda x: f"{x}  ({item_counts[x]:,})",
                 max_selections=N_MAX_USER_ITEMS,
                 label_visibility="collapsed",
                 key="item_selector",
             )
-            kept = tuple(sorted(chosen)) if chosen else tuple(sorted(items_by_freq[:N_MAX_USER_ITEMS]))
+            colored_items = chosen if chosen else items_by_freq[:N_MAX_USER_ITEMS]
         else:
-            kept = tuple(sorted(items_by_freq))
+            colored_items = items_by_freq
 
-        user_data = load_user_data(uploaded.getvalue(), uploaded.name, kept)
+        user_data = load_user_data(uploaded.getvalue(), uploaded.name)
         if user_data is not None:
             data = user_data
             n_b, n_w, n_p = data['items'].shape
             n_it = len(data['item_codes'])
             st.success(
                 f"{uploaded.name}\n\n"
-                f"{n_b} bins · {n_p} positions · {n_w} weeks · {n_it} items"
+                f"{n_b} bins · {n_p} positions · {n_w} snapshots · {n_it} items"
             )
             _n_dup = data.get('n_dup_keys', 0)
             if _n_dup:
@@ -501,7 +493,7 @@ with st.sidebar:
         st.caption("Using synthetic demo data. Upload a CSV to use your own data.")
         st.caption(
             "Required columns: `bin_id`, `date`, `position`, `item`, `bin_rank`, `region`  \n"
-            f"Up to {N_MAX_USER_ITEMS} named items shown; extras grouped as {OTHER_LABEL}.  \n"
+            f"Up to {N_MAX_USER_ITEMS} items get distinct colours; extras shown in gray.  \n"
             "`bin_id` is used as the display name."
         )
 
@@ -547,12 +539,25 @@ function copyAtlasLink(){{
     st.caption("The link encodes your current filters, sort mode, and date range.")
 
 # ── Extract item vocabulary and threading variables ───────────────────────────
-item_codes  = data.get('item_codes', list(ITEMS))
-item_colors = data.get('item_colors', list(COLORS))
-n_items     = len(item_codes)
+item_codes = data.get('item_codes', list(ITEMS))
+n_items    = len(item_codes)
 
-# Reset items_pills when the item vocabulary changes (e.g., new CSV uploaded)
-_item_sig = ','.join(item_codes)
+# Build item_colors: colored_items get distinct COLORS, everything else gets OTHER_COLOR.
+if colored_items is not None:
+    _colored_set = set(colored_items)
+    _color_idx   = {item: i for i, item in enumerate(colored_items)}
+    item_colors  = [
+        COLORS[_color_idx[item]] if item in _colored_set else OTHER_COLOR
+        for item in item_codes
+    ]
+    # pill_items: only the distinctly-coloured items shown in the pills
+    pill_items = list(colored_items)
+else:
+    item_colors = data.get('item_colors', list(COLORS[:n_items]))
+    pill_items  = item_codes
+
+# Reset items_pills when the pill options change (new file or new colour selection)
+_item_sig = ','.join(pill_items)
 if st.session_state.get('_item_sig') != _item_sig:
     st.session_state.pop('items_pills', None)
     st.session_state['_item_sig'] = _item_sig
@@ -565,9 +570,10 @@ if st.session_state.get('_region_sig') != _region_sig:
     st.session_state.pop('regions_pills', None)
     st.session_state['_region_sig'] = _region_sig
 
-# Per-item pill colors via JS — uses current item_colors so custom uploads work.
+# Per-item pill colors via JS — only pill_items get distinct colours.
 # Discriminator: skip button groups that contain a region label.
-_colors_json = json.dumps(item_colors)
+_pill_colors  = [item_colors[item_codes.index(it)] for it in pill_items]
+_colors_json  = json.dumps(_pill_colors)
 _regions_json = json.dumps(available_regions)
 components.html(
     f"""<script>
@@ -641,12 +647,12 @@ with col_regions:
 
 with col_items:
     if 'items_pills' not in st.session_state:
-        st.session_state['items_pills'] = list(item_codes)
+        st.session_state['items_pills'] = list(pill_items)
 
     bc1, bc2, _ = st.columns([1, 1, 6])
     with bc1:
         if st.button("Select all", use_container_width=True, key="btn_all"):
-            st.session_state['items_pills'] = list(item_codes)
+            st.session_state['items_pills'] = list(pill_items)
             st.rerun()
     with bc2:
         if st.button("Clear", use_container_width=True, key="btn_clear"):
@@ -655,7 +661,7 @@ with col_items:
 
     selected_items = st.pills(
         f"{item_term.capitalize()}s (toggle to highlight; unselected {item_term}s dim)",
-        item_codes,
+        pill_items,
         selection_mode="multi",
         key="items_pills",
     )
@@ -690,12 +696,11 @@ with col_pos:
 # ── Control row 3: Sort + Cell size ───────────────────────────────────────────
 col_sort, col_size = st.columns([3, 2])
 
-n_sel = len(selected_items) if selected_items else 0
-n_real_items = n_items - (1 if OTHER_LABEL in item_codes else 0)
-n_sel_real   = len([i for i in selected_items if i != OTHER_LABEL]) if selected_items else 0
+n_sel        = len(selected_items) if selected_items else 0
+n_pill_items = len(pill_items)
 with col_sort:
     sort_options = ["Index", "Similarity", f"{bin_term.capitalize()} Rank", "Top-rank"]
-    if 0 < n_sel_real < n_real_items:
+    if 0 < n_sel < n_pill_items:
         sort_options.append("Selected Share")
 
     # If stored sort is no longer valid (e.g. Selected Share removed), reset
@@ -758,7 +763,7 @@ elif sort_mode == "Top-rank":
     keys  = [''.join(f'{int(x):x}' for x in row) for row in majority]
     order = np.argsort(keys, kind='stable')
 elif sort_mode == "Selected Share":
-    sel_idx_set = [item_codes.index(i) for i in selected_items if i != OTHER_LABEL]
+    sel_idx_set = [item_codes.index(i) for i in selected_items]
     top10       = majority[:, :10]
     share_count = np.isin(top10, sel_idx_set).sum(axis=1)
     order       = np.argsort(-share_count, kind='stable')
@@ -774,9 +779,11 @@ n_show_pos  = len(pos_indices)
 
 # ── Colorscale ────────────────────────────────────────────────────────────────
 sel_idx_set = set(item_codes.index(i) for i in selected_items) if selected_items else set()
-all_or_none = (len(sel_idx_set) == 0) or (len(sel_idx_set) == n_items)
+all_or_none = (len(sel_idx_set) == 0) or (len(sel_idx_set) >= n_pill_items)
 
 def effective_color(i):
+    if item_colors[i] == OTHER_COLOR:
+        return OTHER_COLOR   # gray items never dim further
     if all_or_none or i in sel_idx_set:
         return item_colors[i]
     return dim_color(item_colors[i], 0.88)
@@ -831,7 +838,8 @@ z         = majority_disp.astype(float)
 
 # ── Legend ────────────────────────────────────────────────────────────────────
 legend_parts = []
-for idx, (item, _) in enumerate(zip(item_codes, item_colors)):
+for item in pill_items:
+    idx  = item_codes.index(item)
     c    = effective_color(idx)
     dim  = not (all_or_none or idx in sel_idx_set)
     text_color = MUTED if dim else INK
@@ -841,6 +849,16 @@ for idx, (item, _) in enumerate(zip(item_codes, item_colors)):
         f'flex-shrink:0;border-radius:2px;"></span>'
         f'<span style="color:{text_color};font-family:IBM Plex Mono,monospace;'
         f'font-size:11px;">{item}</span>'
+        f'</span>'
+    )
+n_gray = n_items - len(pill_items)
+if n_gray > 0:
+    legend_parts.append(
+        f'<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;">'
+        f'<span style="display:inline-block;width:11px;height:11px;background:{OTHER_COLOR};'
+        f'flex-shrink:0;border-radius:2px;"></span>'
+        f'<span style="color:{MUTED};font-family:IBM Plex Mono,monospace;'
+        f'font-size:11px;">{n_gray} other</span>'
         f'</span>'
     )
 st.markdown(
