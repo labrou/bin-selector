@@ -180,6 +180,10 @@ def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
     df['date']   = pd.to_datetime(df['date']).dt.date
     df['item']   = df['item'].astype(str)
     df['bin_id'] = df['bin_id'].astype(str)
+    df['region'] = df['region'].astype(str)
+
+    # Composite key: a bin_id that appears in multiple regions becomes distinct rows
+    df['bin_key'] = df['bin_id'] + ' · ' + df['region']
 
     kept_set = set(kept_items)
     df['item'] = df['item'].apply(lambda x: x if x in kept_set else OTHER_LABEL)
@@ -187,14 +191,12 @@ def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
     if OTHER_LABEL in df['item'].values:
         user_items.append(OTHER_LABEL)  # always last
 
-    df['region'] = df['region'].astype(str)
-
     def _majority_or_random(x):
         modes = x.mode()
         return modes.iloc[np.random.randint(len(modes))]
 
-    # Collapse multiple measurements per (bin_id, date, position): majority item, random tiebreak
-    key_cols = ['bin_id', 'date', 'position']
+    # Collapse multiple measurements per (bin_key, date, position): majority item, random tiebreak
+    key_cols = ['bin_key', 'date', 'position']
     dup_counts = df.groupby(key_cols).size()
     n_dup_keys = int((dup_counts > 1).sum())
     if n_dup_keys:
@@ -203,31 +205,31 @@ def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
                      bin_rank=('bin_rank', 'first'),
                      region=('region', 'first')))
 
-    bin_ids   = sorted(df['bin_id'].unique())
+    bin_keys  = sorted(df['bin_key'].unique())
     dates     = sorted(df['date'].unique())
     positions = sorted(df['position'].unique())
 
-    n_bins  = len(bin_ids)
+    n_bins  = len(bin_keys)
     n_weeks = len(dates)
     n_pos   = len(positions)
 
     item_to_idx  = {code: i for i, code in enumerate(user_items)}
-    bin_idx_map  = {b: i for i, b in enumerate(bin_ids)}
+    bin_idx_map  = {b: i for i, b in enumerate(bin_keys)}
     date_idx_map = {d: i for i, d in enumerate(dates)}
     pos_idx_map  = {p: i for i, p in enumerate(positions)}
 
     items_array = np.zeros((n_bins, n_weeks, n_pos), dtype=np.int8)
     for row in df.itertuples(index=False):
         items_array[
-            bin_idx_map[str(row.bin_id)],
+            bin_idx_map[row.bin_key],
             date_idx_map[row.date],
             pos_idx_map[row.position],
         ] = item_to_idx.get(str(row.item), 0)
 
     bin_meta = (
-        df.drop_duplicates('bin_id')
-        .set_index('bin_id')
-        .loc[bin_ids, ['bin_rank', 'region']]
+        df.drop_duplicates('bin_key')
+        .set_index('bin_key')
+        .loc[bin_keys, ['bin_rank', 'region']]
     )
 
     user_colors = [COLORS[i % len(COLORS)] for i in range(len(user_items))]
@@ -238,7 +240,7 @@ def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
         'items':       items_array,
         'bin_ranks':   bin_meta['bin_rank'].to_numpy().astype(int),
         'bin_regions': bin_meta['region'].to_numpy().astype(str),
-        'bin_names':   np.array(bin_ids),
+        'bin_names':   np.array(bin_keys),
         'dates':       list(dates),
         'item_codes':  user_items,
         'item_colors': user_colors,
@@ -1020,8 +1022,9 @@ if drill_bin != _no_sel:
         drill_items = bin_weekly[date_indices][:, pos_indices]  # (n_dates, n_pos)
         drill_dates = data['dates'][date_start_idx:date_end_idx + 1]
 
+        _region_suffix = f" · {bin_region}" if ' · ' not in drill_bin else ""
         with st.expander(
-            f"Time series · {drill_bin} · Rank {bin_rank_v} · {bin_region}",
+            f"Time series · {drill_bin} · Rank {bin_rank_v}{_region_suffix}",
             expanded=True,
         ):
             mini_z    = drill_items.T.astype(float)           # (n_pos, n_dates)
