@@ -679,11 +679,11 @@ with col_items:
         key="items_pills",
     )
     st.caption(f"Click to highlight · unselected {item_term}s dim")
-    ic1, ic2, _ = st.columns([1, 1, 14])
+    ic1, ic2, _ = st.columns([1, 1, 8])
     with ic1:
-        st.button("All",  key="btn_all",   use_container_width=True, on_click=_items_all)
+        st.button("All",  key="btn_all",   on_click=_items_all)
     with ic2:
-        st.button("None", key="btn_clear", use_container_width=True, on_click=_items_none)
+        st.button("None", key="btn_clear", on_click=_items_none)
 
 # ── Row 2: Ranges — Date / Bin Rank / Position ────────────────────────────────
 st.divider()
@@ -774,6 +774,8 @@ with col_pos:
         "Position range", 1, n_pos_total, (1, n_pos_total),
         key="pos_slider",
     )
+
+st.divider()
 
 # ── Row 3: Sort (full width) ───────────────────────────────────────────────────
 n_sel        = len(selected_items) if selected_items else 0
