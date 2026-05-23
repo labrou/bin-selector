@@ -659,7 +659,7 @@ with col_regions:
         default=available_regions,
         key="regions_pills",
     )
-    rc1, rc2, _ = st.columns([2, 2, 4])
+    rc1, rc2 = st.columns(2)
     with rc1:
         st.button("all",  key="btn_reg_all",  on_click=_reg_all)
     with rc2:
@@ -679,7 +679,7 @@ with col_items:
         selection_mode="multi",
         key="items_pills",
     )
-    ic1, ic2, _ = st.columns([1, 1, 8])
+    ic1, ic2 = st.columns(2)
     with ic1:
         st.button("all",  key="btn_all",   on_click=_items_all)
     with ic2:
