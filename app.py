@@ -135,7 +135,7 @@ def generate_data():
     combined  /= combined.sum(axis=3, keepdims=True)
     cumulative = np.cumsum(combined, axis=3)
     r          = rng.random((NUM_BINS, NUM_WEEKS, NUM_POSITIONS, 1))
-    items_array = (r < cumulative).argmax(axis=3).astype(np.int8)  # (B, W, P)
+    items_array = (r < cumulative).argmax(axis=3).astype(np.int16)  # (B, W, P)
 
     return {
         'items':       items_array,
@@ -214,7 +214,7 @@ def load_user_data(file_bytes: bytes, filename: str):
     date_idx_map = {d: i for i, d in enumerate(dates)}
     pos_idx_map  = {p: i for i, p in enumerate(positions)}
 
-    items_array = np.full((n_bins, n_weeks, n_pos), -1, dtype=np.int8)  # -1 = no data
+    items_array = np.full((n_bins, n_weeks, n_pos), -1, dtype=np.int16)  # -1 = no data
     for row in df.itertuples(index=False):
         items_array[
             bin_idx_map[row.bin_key],
@@ -256,7 +256,7 @@ def compute_majority(items_subset, n_items=10):
     """
     n_bins, n_weeks, n_positions = items_subset.shape
     if n_weeks == 1:
-        result = items_subset[:, 0, :].astype(np.int8)
+        result = items_subset[:, 0, :].astype(np.int16)
         return result, (result >= 0).astype(float)
 
     counts = np.zeros((n_bins, n_positions, n_items), dtype=np.int32)
@@ -264,7 +264,7 @@ def compute_majority(items_subset, n_items=10):
         counts[:, :, i] = (items_subset == i).sum(axis=1)
 
     max_counts = counts.max(axis=2)
-    majority   = counts.argmax(axis=2).astype(np.int8)
+    majority   = counts.argmax(axis=2).astype(np.int16)
     no_data    = max_counts == 0
     majority[no_data] = -1
 
@@ -275,7 +275,7 @@ def compute_majority(items_subset, n_items=10):
     majority = np.where(
         (most_recent >= 0) & (most_recent_count == max_counts),
         most_recent, majority,
-    ).astype(np.int8)
+    ).astype(np.int16)
     majority[no_data] = -1
     return majority, np.where(no_data, 0.0, max_counts / n_weeks)
 
