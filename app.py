@@ -310,7 +310,7 @@ def apply_url_params(dates, item_codes=None):
     if 'rk0' in p and 'rk1' in p and 'rank_slider' not in st.session_state:
         try:
             lo, hi = int(p['rk0']), int(p['rk1'])
-            st.session_state['rank_slider'] = (max(1, min(lo, hi)), max(lo, hi))
+            st.session_state['rank_slider'] = (min(lo, hi), max(lo, hi))
         except ValueError:
             pass
 
@@ -600,6 +600,7 @@ components.html(
 apply_url_params(data['dates'], item_codes)
 
 n_pos_total  = data['items'].shape[2]
+min_rank_val = int(data['bin_ranks'].min())
 max_rank_val = int(data['bin_ranks'].max())
 
 # ── Title ─────────────────────────────────────────────────────────────────────
@@ -665,7 +666,7 @@ with col_date:
 
 with col_rank:
     rank_range = st.slider(
-        f"{bin_term.capitalize()} rank range", 1, max_rank_val, (1, max_rank_val),
+        f"{bin_term.capitalize()} rank range", min_rank_val, max_rank_val, (min_rank_val, max_rank_val),
         key="rank_slider",
     )
 
