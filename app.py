@@ -79,7 +79,7 @@ def sort_descriptions(bt, it):
         "Similarity":     f"{bt.capitalize()}s sharing the same {it}s at positions 1–4 cluster together, surfacing archetypes as broad horizontal color bands. Default.",
         f"{bt.capitalize()} Rank": f"Top = highest-ranked {bt}s (rank 1). Use this when the question is about rank: do top {bt}s share a distinct profile?",
         "Top-rank":       f"Full lexicographic sort over all positions. The leftmost column is perfectly grouped; later columns fragment.",
-        "Selected Share": f"Top = {bt}s whose top-10 positions are most saturated by the selected {it}s. Only available when 1–9 {it}s are highlighted.",
+        "Selected Share": f"{bt.capitalize()}s ranked by how many of their top-10 positions are held by the selected {it}s. Available when 1 to N−1 {it}s are highlighted.",
     }
 
 # ============ DATA GENERATION ============
@@ -1061,7 +1061,7 @@ fig.add_trace(
         text=text_grid,
         hovertemplate=(
             "<b>%{customdata[0]}</b>  ·  Rank %{customdata[1]}  ·  %{customdata[2]}<br>"
-            "Position %{customdata[3]}  ·  Item <b>%{text}</b><br>"
+            f"Position %{{customdata[3]}}  ·  {item_term.capitalize()} <b>%{{text}}</b><br>"
             "Majority share: %{customdata[4]:.0%}"
             "<extra></extra>"
         ),
@@ -1203,7 +1203,7 @@ if drill_bin != _no_sel:
                 text=mini_text,
                 hovertemplate=(
                     "Week: <b>%{x}</b>  ·  Position: <b>%{y}</b><br>"
-                    "Item: <b>%{text}</b><extra></extra>"
+                    f"{item_term.capitalize()}: <b>%{{text}}</b><extra></extra>"
                 ),
                 xgap=0.5, ygap=0.5,
             ))
