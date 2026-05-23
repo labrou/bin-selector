@@ -419,6 +419,9 @@ st.markdown(f"""
         border: 1px solid #2A2A2A !important;
         background: transparent !important;
         color: {INK} !important;
+        padding: 1px 8px !important;
+        min-height: 26px !important;
+        line-height: 1.4 !important;
     }}
     .stButton button:hover {{
         background: {INK} !important;
@@ -643,13 +646,13 @@ with col_regions:
         else:
             del st.session_state['regions_pills']
 
-    rc1, rc2, _ = st.columns([1, 1, 4])
+    rc1, rc2, _ = st.columns([1, 1, 6])
     with rc1:
-        if st.button("All", key="btn_reg_all", use_container_width=True):
+        if st.button("All", key="btn_reg_all"):
             st.session_state['regions_pills'] = list(available_regions)
             st.rerun()
     with rc2:
-        if st.button("None", key="btn_reg_none", use_container_width=True):
+        if st.button("None", key="btn_reg_none"):
             st.session_state['regions_pills'] = []
             st.rerun()
 
@@ -665,13 +668,13 @@ with col_items:
     if 'items_pills' not in st.session_state:
         st.session_state['items_pills'] = list(pill_items)
 
-    ic1, ic2, _ = st.columns([1, 1, 6])
+    ic1, ic2, _ = st.columns([1, 1, 8])
     with ic1:
-        if st.button("All", use_container_width=True, key="btn_all"):
+        if st.button("All", key="btn_all"):
             st.session_state['items_pills'] = list(pill_items)
             st.rerun()
     with ic2:
-        if st.button("None", use_container_width=True, key="btn_clear"):
+        if st.button("None", key="btn_clear"):
             st.session_state['items_pills'] = []
             st.rerun()
 
@@ -687,8 +690,8 @@ col_date, col_rank, col_pos = st.columns(3)
 
 with col_date:
     date_mode = st.radio(
-        "Date mode", ["Range", "Step"],
-        horizontal=True, key="date_mode", label_visibility="collapsed",
+        "Date", ["Range", "Step"],
+        horizontal=True, key="date_mode",
     )
     if date_mode == "Range":
         st.session_state['playing'] = False
@@ -698,6 +701,7 @@ with col_date:
             value=(data['dates'][-13], data['dates'][-1]),
             format_func=lambda d: d.strftime("%b %d, '%y"),
             key="wk_slider",
+            label_visibility="collapsed",
         )
     else:
         _n_dates = len(data['dates'])
@@ -709,6 +713,7 @@ with col_date:
             options=data['dates'],
             value=data['dates'][step_idx],
             format_func=lambda d: d.strftime("%b %d, '%y"),
+            label_visibility="collapsed",
         )
         st.session_state['step_idx'] = data['dates'].index(step_date)
         step_idx   = st.session_state['step_idx']
@@ -848,13 +853,14 @@ for i in range(n_items):
     colorscale.append([(i + 1) / _n, c])
     colorscale.append([(i + 2) / _n, c])
 
-# ── Cell size controls (above heatmap) ───────────────────────────────────────
-_sz1, _sz2, _ = st.columns([2, 1, 5])
-with _sz1:
+# ── Pre-heatmap row: cell size + export (columns filled in two passes) ────────
+_sz_col, _af_col, _gap_col, _dl_csv_col, _dl_html_col = st.columns([2, 1, 2, 1, 1])
+with _sz_col:
     cell_size = st.slider("Cell size (px)", 6, 28, 12, key="cell_sz")
-with _sz2:
+with _af_col:
     st.write("")
     auto_fit = st.checkbox("Auto-fit", value=True, key="auto_fit_cb")
+# _dl_csv_col and _dl_html_col are filled after csv_bytes / fig are ready
 
 # ── Sizing ────────────────────────────────────────────────────────────────────
 container_w = 900
@@ -974,14 +980,12 @@ summary_html = f"""
 """
 st.markdown(summary_html, unsafe_allow_html=True)
 
-# ── Export buttons ────────────────────────────────────────────────────────────
-exp_c1, exp_c2, _ = st.columns([1, 1, 5])
-
+# ── Export buttons (fills the columns defined in the pre-heatmap row) ─────────
 csv_bytes = make_view_csv(
     bin_names_disp, positions_disp, majority_disp, share_disp,
     ranks_disp, regions_disp, item_codes=item_codes, bin_term=bin_term,
 )
-with exp_c1:
+with _dl_csv_col:
     st.download_button(
         "Download CSV",
         csv_bytes,
@@ -1089,7 +1093,7 @@ chart_event = st.plotly_chart(
 )
 
 # ── HTML export — pure Python, no subprocess, works everywhere ─────────────────
-with exp_c2:
+with _dl_html_col:
     _html = fig.to_html(include_plotlyjs='cdn', config={'displayModeBar': True})
     st.download_button(
         "Download HTML",
