@@ -640,21 +640,12 @@ col_regions, col_items = st.columns([2, 5])
 
 with col_regions:
     if 'regions_pills' in st.session_state:
-        valid = [r for r in st.session_state['regions_pills'] if r in available_regions]
-        if valid:
-            st.session_state['regions_pills'] = valid
+        stored = st.session_state['regions_pills']
+        valid = [r for r in stored if r in available_regions]
+        if stored and not valid:
+            del st.session_state['regions_pills']  # dataset changed, reset
         else:
-            del st.session_state['regions_pills']
-
-    rc1, rc2, _ = st.columns([1, 1, 6])
-    with rc1:
-        if st.button("All", key="btn_reg_all"):
-            st.session_state['regions_pills'] = list(available_regions)
-            st.rerun()
-    with rc2:
-        if st.button("None", key="btn_reg_none"):
-            st.session_state['regions_pills'] = []
-            st.rerun()
+            st.session_state['regions_pills'] = valid  # preserve empty (None clicked)
 
     selected_regions = st.pills(
         "Regions",
@@ -663,20 +654,19 @@ with col_regions:
         default=available_regions,
         key="regions_pills",
     )
+    rc1, rc2, _ = st.columns([2, 2, 4])
+    with rc1:
+        if st.button("All", key="btn_reg_all", use_container_width=True):
+            st.session_state['regions_pills'] = list(available_regions)
+            st.rerun()
+    with rc2:
+        if st.button("None", key="btn_reg_none", use_container_width=True):
+            st.session_state['regions_pills'] = []
+            st.rerun()
 
 with col_items:
     if 'items_pills' not in st.session_state:
         st.session_state['items_pills'] = list(pill_items)
-
-    ic1, ic2, _ = st.columns([1, 1, 8])
-    with ic1:
-        if st.button("All", key="btn_all"):
-            st.session_state['items_pills'] = list(pill_items)
-            st.rerun()
-    with ic2:
-        if st.button("None", key="btn_clear"):
-            st.session_state['items_pills'] = []
-            st.rerun()
 
     selected_items = st.pills(
         f"{item_term.capitalize()}s (toggle to highlight; unselected {item_term}s dim)",
@@ -684,24 +674,29 @@ with col_items:
         selection_mode="multi",
         key="items_pills",
     )
+    ic1, ic2, _ = st.columns([1, 1, 8])
+    with ic1:
+        if st.button("All", key="btn_all", use_container_width=True):
+            st.session_state['items_pills'] = list(pill_items)
+            st.rerun()
+    with ic2:
+        if st.button("None", key="btn_clear", use_container_width=True):
+            st.session_state['items_pills'] = []
+            st.rerun()
 
 # ── Row 2: Ranges — Date / Bin Rank / Position ────────────────────────────────
 col_date, col_rank, col_pos = st.columns(3)
 
 with col_date:
-    date_mode = st.radio(
-        "Date", ["Range", "Step"],
-        horizontal=True, key="date_mode",
-    )
-    if date_mode == "Range":
-        st.session_state['playing'] = False
+    _date_mode_pre = st.session_state.get('date_mode', 'Range')
+
+    if _date_mode_pre == "Range":
         date_range = st.select_slider(
-            "Date range",
+            "Date",
             options=data['dates'],
             value=(data['dates'][-13], data['dates'][-1]),
             format_func=lambda d: d.strftime("%b %d, '%y"),
             key="wk_slider",
-            label_visibility="collapsed",
         )
     else:
         _n_dates = len(data['dates'])
@@ -713,7 +708,6 @@ with col_date:
             options=data['dates'],
             value=data['dates'][step_idx],
             format_func=lambda d: d.strftime("%b %d, '%y"),
-            label_visibility="collapsed",
         )
         st.session_state['step_idx'] = data['dates'].index(step_date)
         step_idx   = st.session_state['step_idx']
@@ -737,6 +731,14 @@ with col_date:
             if st.button("▶▶", use_container_width=True, key="btn_next"):
                 st.session_state.update({'step_idx': min(_n_dates - 1, step_idx + 1), 'playing': False})
                 st.rerun()
+
+    date_mode = st.radio(
+        "Date mode", ["Range", "Step"],
+        horizontal=True, key="date_mode",
+        label_visibility="collapsed",
+    )
+    if date_mode == "Range":
+        st.session_state['playing'] = False
 
 with col_rank:
     _rk = st.session_state.get('rank_slider')
@@ -853,14 +855,9 @@ for i in range(n_items):
     colorscale.append([(i + 1) / _n, c])
     colorscale.append([(i + 2) / _n, c])
 
-# ── Pre-heatmap row: cell size + export (columns filled in two passes) ────────
-_sz_col, _af_col, _gap_col, _dl_csv_col, _dl_html_col = st.columns([2, 1, 2, 1, 1])
-with _sz_col:
-    cell_size = st.slider("Cell size (px)", 6, 28, 12, key="cell_sz")
-with _af_col:
-    st.write("")
-    auto_fit = st.checkbox("Auto-fit", value=True, key="auto_fit_cb")
-# _dl_csv_col and _dl_html_col are filled after csv_bytes / fig are ready
+# ── Sizing (widgets rendered below view summary; read from session state here) ─
+cell_size = st.session_state.get('cell_sz', 12)
+auto_fit  = st.session_state.get('auto_fit_cb', True)
 
 # ── Sizing ────────────────────────────────────────────────────────────────────
 container_w = 900
@@ -980,7 +977,14 @@ summary_html = f"""
 """
 st.markdown(summary_html, unsafe_allow_html=True)
 
-# ── Export buttons (fills the columns defined in the pre-heatmap row) ─────────
+# ── Cell size + Export row ────────────────────────────────────────────────────
+_sz_col, _af_col, _gap_col, _dl_csv_col, _dl_html_col = st.columns([2, 1, 2, 1, 1])
+with _sz_col:
+    st.slider("Cell size (px)", 6, 28, cell_size, key="cell_sz")
+with _af_col:
+    st.write("")
+    st.checkbox("Auto-fit", value=auto_fit, key="auto_fit_cb")
+
 csv_bytes = make_view_csv(
     bin_names_disp, positions_disp, majority_disp, share_disp,
     ranks_disp, regions_disp, item_codes=item_codes, bin_term=bin_term,
