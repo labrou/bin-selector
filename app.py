@@ -310,15 +310,14 @@ def apply_url_params(dates, item_codes=None):
     if 'rk0' in p and 'rk1' in p and 'rank_slider' not in st.session_state:
         try:
             lo, hi = int(p['rk0']), int(p['rk1'])
-            st.session_state['rank_slider'] = (max(1, min(lo, hi)), min(100, max(lo, hi)))
+            st.session_state['rank_slider'] = (max(1, min(lo, hi)), max(lo, hi))
         except ValueError:
             pass
 
     if 'ps0' in p and 'ps1' in p and 'pos_slider' not in st.session_state:
         try:
             lo, hi = int(p['ps0']), int(p['ps1'])
-            n_pos  = len(dates)  # use dates length as proxy; actual cap applied by slider
-            st.session_state['pos_slider'] = (max(1, min(lo, hi)), min(50, max(lo, hi)))
+            st.session_state['pos_slider'] = (max(1, min(lo, hi)), max(lo, hi))
         except ValueError:
             pass
 
