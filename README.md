@@ -62,7 +62,7 @@ numpy>=1.24
 pandas>=1.5
 ```
 
-The `st.pills` widget requires Streamlit 1.40 or newer.
+`st.pills` and `st.dialog` require Streamlit 1.40 or newer.
 
 ---
 
@@ -115,15 +115,16 @@ return a dictionary with the following keys:
 
 | Key           | Type          | Shape                    | Description |
 |---------------|---------------|--------------------------|-------------|
-| `items`       | `np.int8`     | (n_bins, n_dates, n_pos) | Item index at each (bin, date, position). `-1` means no data for that cell. |
+| `items`       | `np.int16`    | (n_bins, n_dates, n_pos) | Item index at each (bin, date, position). `-1` means no data for that cell. |
 | `bin_ranks`   | `np.int64`    | (n_bins,)                | Global rank per bin. |
 | `bin_regions` | `np.str_`     | (n_bins,)                | Region label per bin. |
 | `bin_names`   | `np.str_`     | (n_bins,)                | Display name per bin (used on y-axis). |
 | `dates`       | `list[date]`  | n_dates entries          | Date stamps from oldest to most recent. |
 | `item_codes`  | `list[str]`   | n_items entries          | All item labels, frequency-ordered for uploaded data. |
 
-Item colours are not stored in the data dictionary — they are computed in the
-app from the user's colour-selection multiselect.
+`int16` is used (rather than `int8`) to support datasets with more than 127
+unique item values. Item colours are not stored in the data dictionary —
+they are computed in the app from the user's colour-selection multiselect.
 
 ### Synthetic data generation
 
@@ -176,61 +177,70 @@ interaction.
 
 ## Controls reference
 
-### Regions
+The controls are arranged in three rows above the chart, plus a cell-size /
+export row below the view summary.
 
-Toggleable pills showing all region values present in the data (dynamic —
-not limited to a fixed set). Default: all selected. Filtering by region
-hides bins whose region is not selected.
+### Row 1 — Filters
 
-### Items
+**Regions** · Toggleable pills showing all region values in the data.
+Default: all selected. Filtering by region hides bins whose region is not
+selected. **all** / **none** buttons below the pills select or clear all.
 
-Toggleable pills showing only the **distinctly-coloured** items (up to 11).
-Gray items are always visible in the heatmap but not shown as pills.
+**Items** · Toggleable pills for the distinctly-coloured items (up to 11).
+Gray items are always visible in the heatmap but are not shown as pills.
+Selection controls *highlighting*, not filtering — non-selected items are
+dimmed; gray items are unaffected. **all** / **none** buttons below the
+pills reset or clear the selection.
 
-- **Select all** selects all pill items.
-- **Clear** deselects all.
+### Row 2 — Ranges
 
-Item selection controls highlighting, not filtering. Non-selected items are
-dimmed; gray items are unaffected by the dim.
+**Date** · Dual-handle `select_slider` over all dates in the data.
+Default: most recent 13 snapshots. When the range covers a single date,
+each cell is that date's value. For multiple dates, the
+[majority metric](#majority-metric) applies.
 
-### Date range
+**Bin rank range** · Dual-handle slider over the actual rank range in the
+data (min to max; 0-based ranks are supported). Bins outside the range are
+hidden.
 
-A `select_slider` over all dates in the data. Default: most recent 13 dates.
-When the range covers a single date, each cell is that date's value. For
-multiple dates, the [majority metric](#majority-metric) applies.
+**Position range** · Dual-handle slider over `[1, n_positions]`. Positions
+outside the range are hidden. Sort keys (Similarity, Top-rank) are computed
+over the full position set, so row order is stable when the position window
+changes.
 
-### Bin rank range
+### Row 3 — Sort
 
-Dual-handle slider over the actual rank range in the data (min to max;
-0-based ranks are supported). Bins outside the range are hidden.
+See [Sort modes](#sort-modes) below.
 
-### Position range
+### Below view summary — Cell size & Export
 
-Dual-handle slider over `[1, n_positions]`. Positions outside the range are
-hidden. Sort keys (Similarity, Top-rank) are computed over the full position
-set, so row order is stable when the position window changes.
-
-### Cell size and auto-fit
-
-A slider sets a preferred cell size in pixels (6–28 px, default 12). **Auto-fit**
-expands cells to fill the available space using:
+**Cell size** · Slider sets a preferred cell size in pixels (6–28 px,
+default 12). **Auto-fit** expands cells to fill the available space:
 
 ```
 cell_w = max(slider, container_width  / visible_positions)
 cell_h = max(slider, container_height / visible_bins)
 ```
 
-Cells are capped at 40 × 30 px. With auto-fit off, the slider value is used
-as-is and the figure may scroll if many bins are visible.
+Cells are capped at 40 × 30 px.
 
-### Labels
+**Download CSV** · Exports the current heatmap view (visible bins,
+positions, and date range) as a CSV file.
+
+**Download HTML** · Saves the interactive Plotly figure as a
+self-contained HTML file.
+
+### User guide
+
+A **User guide** button in the top-right of the page opens a modal dialog
+with a full walkthrough of every control.
+
+### Labels (sidebar)
 
 Two text inputs in the sidebar let you rename the domain vocabulary:
 
-- **Bins are called** — replaces "bin" throughout the UI (e.g., "store",
-  "artist", "cohort").
-- **Items are called** — replaces "item" throughout the UI (e.g., "brand",
-  "genre", "role").
+- **Bins are called** — replaces "bin" throughout the UI.
+- **Items are called** — replaces "item" throughout the UI.
 
 ---
 
@@ -333,13 +343,15 @@ on every interaction:
    → `load_user_data` → terminology inputs.
 4. Derive `item_colors` from the colour-selection; define `pill_items`.
 5. JS injection for pill button colours.
-6. **Control row 1:** Regions pills and Items pills.
-7. **Control row 2:** Date, rank, and position sliders.
-8. **Control row 3:** Sort mode radio and cell size controls.
-9. Filter pipeline → `compute_majority` → sort → build colorscale.
-10. Heatmap + marginal bar subplot → `st.plotly_chart`.
-11. Drill-down selectbox for per-bin time-series heatmap.
-12. Export buttons (CSV, HTML).
+6. Title block + **User guide** button (`@st.dialog`).
+7. **Row 1:** Regions pills + Items pills, each with all/none buttons below.
+8. **Row 2:** Date range, bin rank range, position range sliders.
+9. **Row 3:** Sort mode radio.
+10. Filter pipeline → `compute_majority` → sort → build colorscale.
+11. View summary block.
+12. Cell size slider + Auto-fit checkbox + Download CSV/HTML buttons.
+13. Heatmap + marginal bar subplot → `st.plotly_chart`.
+14. Drill-down selectbox for per-bin time-series heatmap.
 
 ### Colour assignment
 
@@ -362,7 +374,7 @@ the panel background; slots 1..n_items map each item index to its color
 
 | Package   | Minimum | Purpose |
 |-----------|---------|---------|
-| streamlit | 1.40    | Web app framework; `st.pills` requires ≥ 1.40. |
+| streamlit | 1.40    | Web app framework; `st.pills` and `st.dialog` require ≥ 1.40. |
 | plotly    | 5.18    | Heatmap and subplot rendering. |
 | numpy     | 1.24    | Vectorized array operations. |
 | pandas    | 1.5     | CSV parsing and data manipulation. |

@@ -622,13 +622,112 @@ n_pos_total  = data['items'].shape[2]
 min_rank_val = int(data['bin_ranks'].min())
 max_rank_val = int(data['bin_ranks'].max())
 
+# ── User guide dialog ─────────────────────────────────────────────────────────
+@st.dialog("User Guide", width="large")
+def _show_user_guide():
+    st.markdown(f"""
+### What you're looking at
+
+A heatmap where each **row** is a {bin_term}, each **column** is a ranked position,
+and each **cell** is coloured by the {item_term} occupying that slot.
+When you select a date range spanning multiple snapshots, each cell shows the
+**most frequent {item_term}** across those dates (ties broken by the most recent snapshot).
+Hover any cell for exact values.
+
+---
+
+### Filters — Row 1
+
+**Regions** · Toggleable pills. Selecting a subset hides {bin_term}s whose region is not selected.
+Use **all** / **none** to select or clear in one click.
+
+**{item_term.capitalize()}s** · Toggleable pills. Selection controls *highlighting*, not filtering —
+all {item_term}s remain visible, but unselected ones are dimmed.
+Use **all** / **none** to reset or clear.
+
+---
+
+### Ranges — Row 2
+
+**Date** · Dual-handle slider over all snapshots in the data.
+Narrowing to a single date shows that exact snapshot; a wider range
+triggers the majority metric described above.
+
+**{bin_term.capitalize()} rank range** · Filter rows by global rank.
+Drag either handle to zoom in on top- or bottom-ranked {bin_term}s.
+
+**Position range** · Hide columns outside the chosen window.
+Sort keys are always computed over the full position set, so row
+order stays stable as you narrow the window.
+
+---
+
+### Sort — Row 3
+
+| Mode | What it does |
+|---|---|
+| **Index** | Original data order — unsorted baseline |
+| **Similarity** | Groups {bin_term}s that share the same {item_term}s at positions 1–4 (default) |
+| **{bin_term.capitalize()} Rank** | Ascending by global rank — top-ranked {bin_term}s at top |
+| **Top-rank** | Lexicographic sort across all positions |
+| **Selected Share** | Ranks {bin_term}s by how many of their top-10 slots are held by the selected {item_term}s (available when 1 – N−1 items are highlighted) |
+
+---
+
+### Cell size & Export
+
+**Cell size** slider and **Auto-fit** checkbox sit just below the View Summary block,
+next to the download buttons. Auto-fit expands cells to use available space;
+the slider sets a minimum (and the exact size when Auto-fit is off).
+
+**Download CSV** exports the current view (visible {bin_term}s, positions, and date range).
+**Download HTML** saves the interactive Plotly figure as a self-contained file.
+
+---
+
+### Drill-down
+
+Click any cell in the heatmap to select that {bin_term}.
+A time-series heatmap for that {bin_term} appears below the main chart,
+showing how its position-by-position {item_term} mix evolved over all dates.
+
+---
+
+### Uploading your own data
+
+Open the **sidebar** (arrow at top-left) and upload a CSV with these columns:
+
+| Column | Notes |
+|---|---|
+| `bin_id` | Display name for the {bin_term} |
+| `date` | Any format `pd.to_datetime` accepts |
+| `position` | Integer rank within the {bin_term} (1-based or 0-based) |
+| `item` | Any string label |
+| `bin_rank` | Global rank of the {bin_term} |
+| `region` | Grouping label |
+
+If the same `bin_id` appears in multiple regions it becomes a distinct row
+labelled `bin_id · region`. Multiple rows for the same (bin, date, position)
+are resolved by majority vote (random tiebreak).
+
+Up to **11** {item_term}s can receive distinct colours; the rest render in gray
+but still show their real label on hover and in cell text.
+""")
+
 # ── Title ─────────────────────────────────────────────────────────────────────
-st.markdown(f"""
+_title_col, _help_col = st.columns([9, 1])
+with _title_col:
+    st.markdown(f"""
 <div class="title-block">
     <div class="title">Ranked Placement Atlas</div>
     <div class="subtitle">{len(data['bin_names'])} {bin_term}s × {n_pos_total} ranked positions × {n_items} {item_term}s × {len(data['dates'])} snapshots. When multiple dates are selected, each cell shows the modal {item_term} across the range (ties broken by recency).</div>
 </div>
 """, unsafe_allow_html=True)
+with _help_col:
+    st.write("")
+    st.write("")
+    if st.button("User guide", key="help_btn"):
+        _show_user_guide()
 
 # ── Row 1: Filters — Regions + Items ──────────────────────────────────────────
 st.markdown(
