@@ -37,7 +37,10 @@ from plotly.subplots import make_subplots
 from datetime import date, timedelta
 
 # ============ CONSTANTS ============
-N_MAX_ITEMS = 12   # hard cap: beyond ~12 heatmap colors become indistinguishable
+N_MAX_ITEMS  = 12          # total display cap including _OTHER_
+N_MAX_USER_ITEMS = N_MAX_ITEMS - 1   # user-selectable items; last slot reserved for _OTHER_
+OTHER_LABEL  = '_OTHER_'   # synthetic label for items outside the kept vocabulary
+OTHER_COLOR  = '#9CA3AF'   # neutral gray — visually distinct from all real item colors
 
 ITEMS = ['APX', 'BRT', 'CFD', 'DLT', 'ETR', 'FRM', 'GVS', 'HXC', 'INV', 'JTL']
 COLORS = ['#B91C1C', '#1E3A8A', '#15803D', '#CA8A04', '#6D28D9',
@@ -178,8 +181,11 @@ def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
     df['item']   = df['item'].astype(str)
     df['bin_id'] = df['bin_id'].astype(str)
 
-    df = df[df['item'].isin(kept_items)].copy()
-    user_items = sorted(df['item'].unique().tolist())
+    kept_set = set(kept_items)
+    df['item'] = df['item'].apply(lambda x: x if x in kept_set else OTHER_LABEL)
+    user_items = sorted(i for i in df['item'].unique().tolist() if i != OTHER_LABEL)
+    if OTHER_LABEL in df['item'].values:
+        user_items.append(OTHER_LABEL)  # always last
 
     df['region'] = df['region'].astype(str)
 
@@ -225,6 +231,8 @@ def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
     )
 
     user_colors = [COLORS[i % len(COLORS)] for i in range(len(user_items))]
+    if user_items and user_items[-1] == OTHER_LABEL:
+        user_colors[-1] = OTHER_COLOR
 
     return {
         'items':       items_array,
@@ -444,23 +452,24 @@ with st.sidebar:
     if uploaded is not None:
         items_by_freq, item_counts = discover_items(uploaded.getvalue(), uploaded.name)
 
-        if len(items_by_freq) > N_MAX_ITEMS:
+        if len(items_by_freq) > N_MAX_USER_ITEMS:
             st.markdown(
                 f'<div style="font-family:IBM Plex Mono,monospace;font-size:10px;'
                 f'color:{MUTED};margin:6px 0 2px;">Your data has {len(items_by_freq)} unique '
-                f'item values — select up to {N_MAX_ITEMS} to include.</div>',
+                f'item values — select up to {N_MAX_USER_ITEMS}; the rest are grouped as '
+                f'{OTHER_LABEL}.</div>',
                 unsafe_allow_html=True,
             )
             chosen = st.multiselect(
                 "Items to include",
                 options=items_by_freq,          # ordered by descending frequency
-                default=items_by_freq[:N_MAX_ITEMS],
+                default=items_by_freq[:N_MAX_USER_ITEMS],
                 format_func=lambda x: f"{x}  ({item_counts[x]:,})",
-                max_selections=N_MAX_ITEMS,
+                max_selections=N_MAX_USER_ITEMS,
                 label_visibility="collapsed",
                 key="item_selector",
             )
-            kept = tuple(sorted(chosen)) if chosen else tuple(sorted(items_by_freq[:N_MAX_ITEMS]))
+            kept = tuple(sorted(chosen)) if chosen else tuple(sorted(items_by_freq[:N_MAX_USER_ITEMS]))
         else:
             kept = tuple(sorted(items_by_freq))
 
@@ -483,7 +492,7 @@ with st.sidebar:
         st.caption("Using synthetic demo data. Upload a CSV to use your own data.")
         st.caption(
             "Required columns: `bin_id`, `date`, `position`, `item`, `bin_rank`, `region`  \n"
-            f"Up to {N_MAX_ITEMS} items shown; if more exist you choose which to keep.  \n"
+            f"Up to {N_MAX_USER_ITEMS} named items shown; extras grouped as {OTHER_LABEL}.  \n"
             "`bin_id` is used as the display name."
         )
 
@@ -669,9 +678,11 @@ with col_pos:
 col_sort, col_size = st.columns([3, 2])
 
 n_sel = len(selected_items) if selected_items else 0
+n_real_items = n_items - (1 if OTHER_LABEL in item_codes else 0)
+n_sel_real   = len([i for i in selected_items if i != OTHER_LABEL]) if selected_items else 0
 with col_sort:
     sort_options = ["Index", "Similarity", f"{bin_term.capitalize()} Rank", "Top-rank"]
-    if 0 < n_sel < n_items:
+    if 0 < n_sel_real < n_real_items:
         sort_options.append("Selected Share")
 
     # If stored sort is no longer valid (e.g. Selected Share removed), reset
@@ -734,7 +745,7 @@ elif sort_mode == "Top-rank":
     keys  = [''.join(f'{int(x):x}' for x in row) for row in majority]
     order = np.argsort(keys, kind='stable')
 elif sort_mode == "Selected Share":
-    sel_idx_set = [item_codes.index(i) for i in selected_items]
+    sel_idx_set = [item_codes.index(i) for i in selected_items if i != OTHER_LABEL]
     top10       = majority[:, :10]
     share_count = np.isin(top10, sel_idx_set).sum(axis=1)
     order       = np.argsort(-share_count, kind='stable')
