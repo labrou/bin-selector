@@ -218,7 +218,7 @@ def load_user_data(file_bytes: bytes, filename: str, kept_items: tuple):
     date_idx_map = {d: i for i, d in enumerate(dates)}
     pos_idx_map  = {p: i for i, p in enumerate(positions)}
 
-    items_array = np.zeros((n_bins, n_weeks, n_pos), dtype=np.int8)
+    items_array = np.full((n_bins, n_weeks, n_pos), -1, dtype=np.int8)  # -1 = no data
     for row in df.itertuples(index=False):
         items_array[
             bin_idx_map[row.bin_key],
@@ -265,7 +265,8 @@ def compute_majority(items_subset, n_items=10):
     """
     n_bins, n_weeks, n_positions = items_subset.shape
     if n_weeks == 1:
-        return items_subset[:, 0, :].astype(np.int8), np.ones((n_bins, n_positions))
+        result = items_subset[:, 0, :].astype(np.int8)
+        return result, (result >= 0).astype(float)
 
     counts = np.zeros((n_bins, n_positions, n_items), dtype=np.int32)
     for i in range(n_items):
@@ -273,12 +274,19 @@ def compute_majority(items_subset, n_items=10):
 
     max_counts = counts.max(axis=2)
     majority   = counts.argmax(axis=2).astype(np.int8)
+    no_data    = max_counts == 0
+    majority[no_data] = -1
 
-    most_recent       = items_subset[:, -1, :]
-    b_idx, p_idx      = np.meshgrid(np.arange(n_bins), np.arange(n_positions), indexing='ij')
-    most_recent_count = counts[b_idx, p_idx, most_recent]
-    majority          = np.where(most_recent_count == max_counts, most_recent, majority).astype(np.int8)
-    return majority, max_counts / n_weeks
+    most_recent  = items_subset[:, -1, :]
+    b_idx, p_idx = np.meshgrid(np.arange(n_bins), np.arange(n_positions), indexing='ij')
+    safe_recent  = np.clip(most_recent, 0, n_items - 1)
+    most_recent_count = np.where(most_recent >= 0, counts[b_idx, p_idx, safe_recent], 0)
+    majority = np.where(
+        (most_recent >= 0) & (most_recent_count == max_counts),
+        most_recent, majority,
+    ).astype(np.int8)
+    majority[no_data] = -1
+    return majority, np.where(no_data, 0.0, max_counts / n_weeks)
 
 
 def apply_url_params(dates, item_codes=None):
@@ -346,7 +354,7 @@ def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, regions,
                 'rank':           int(ranks[j]),
                 'region':         regions[j],
                 'position':       int(pos),
-                'item':           item_codes[int(items_grid[j, i])],
+                'item':           item_codes[int(items_grid[j, i])] if items_grid[j, i] >= 0 else '',
                 'majority_share': round(float(share_grid[j, i]), 4),
             })
     return pd.DataFrame(rows).to_csv(index=False).encode()
@@ -773,11 +781,13 @@ def effective_color(i):
         return item_colors[i]
     return dim_color(item_colors[i], 0.88)
 
-colorscale = []
+# Colorscale spans [-1, n_items]: slot 0 = no-data (background), slots 1..n_items = items.
+_n = n_items + 1
+colorscale = [[0.0, PANEL_BG], [1 / _n, PANEL_BG]]
 for i in range(n_items):
     c = effective_color(i)
-    colorscale.append([i / n_items, c])
-    colorscale.append([(i + 1) / n_items, c])
+    colorscale.append([(i + 1) / _n, c])
+    colorscale.append([(i + 2) / _n, c])
 
 # ── Sizing ────────────────────────────────────────────────────────────────────
 container_w = 900
@@ -811,7 +821,12 @@ customdata[:, :, 2] = regions_disp[:, None]
 customdata[:, :, 3] = positions_disp[None, :].astype(int)
 customdata[:, :, 4] = share_disp.astype(float)
 
-text_grid = np.array(item_codes)[majority_disp.astype(int)]
+_codes    = np.array(item_codes)
+text_grid = np.where(
+    majority_disp >= 0,
+    _codes[np.clip(majority_disp.astype(int), 0, n_items - 1)],
+    '—',
+)
 z         = majority_disp.astype(float)
 
 # ── Legend ────────────────────────────────────────────────────────────────────
@@ -897,7 +912,7 @@ fig.add_trace(
         x=list(positions_disp),
         y=list(bin_names_disp),
         colorscale=colorscale,
-        zmin=0,
+        zmin=-1,
         zmax=n_items,
         showscale=False,
         customdata=customdata,
@@ -1031,7 +1046,8 @@ if drill_bin != _no_sel:
             expanded=True,
         ):
             mini_z    = drill_items.T.astype(float)           # (n_pos, n_dates)
-            mini_text = np.array(item_codes)[drill_items.T.astype(int)]
+            _di       = drill_items.T.astype(int)
+            mini_text = np.where(_di >= 0, _codes[np.clip(_di, 0, n_items - 1)], '—')
             x_labels  = [d.strftime("%b %d") for d in drill_dates]
             y_labels  = list(positions_disp)
 
@@ -1040,7 +1056,7 @@ if drill_bin != _no_sel:
                 x=x_labels,
                 y=y_labels,
                 colorscale=colorscale,
-                zmin=0, zmax=n_items,
+                zmin=-1, zmax=n_items,
                 showscale=False,
                 text=mini_text,
                 hovertemplate=(
@@ -1083,7 +1099,7 @@ if drill_bin != _no_sel:
                     drill_rows.append({
                         bin_term: drill_bin, 'rank': int(bin_rank_v), 'region': bin_region,
                         'date': d.isoformat(), 'position': int(pos),
-                        'item': item_codes[int(drill_items[wi, pi])],
+                        'item': item_codes[int(drill_items[wi, pi])] if drill_items[wi, pi] >= 0 else '',
                     })
             drill_csv = pd.DataFrame(drill_rows).to_csv(index=False).encode()
             st.download_button(
