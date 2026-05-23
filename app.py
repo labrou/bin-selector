@@ -28,6 +28,7 @@ Data schema (synthetic):
 
 import io
 import json
+import time
 import streamlit as st
 import streamlit.components.v1 as components
 import numpy as np
@@ -670,13 +671,52 @@ with col_items:
 col_date, col_rank, col_pos = st.columns(3)
 
 with col_date:
-    date_range = st.select_slider(
-        "Date range",
-        options=data['dates'],
-        value=(data['dates'][-13], data['dates'][-1]),
-        format_func=lambda d: d.strftime("%b %d, '%y"),
-        key="wk_slider",
+    date_mode = st.radio(
+        "Date mode", ["Range", "Step"],
+        horizontal=True, key="date_mode", label_visibility="collapsed",
     )
+    if date_mode == "Range":
+        st.session_state['playing'] = False
+        date_range = st.select_slider(
+            "Date range",
+            options=data['dates'],
+            value=(data['dates'][-13], data['dates'][-1]),
+            format_func=lambda d: d.strftime("%b %d, '%y"),
+            key="wk_slider",
+        )
+    else:
+        _n_dates = len(data['dates'])
+        if st.session_state.get('step_idx', _n_dates - 1) >= _n_dates:
+            st.session_state['step_idx'] = _n_dates - 1
+        step_idx  = st.session_state.get('step_idx', _n_dates - 1)
+        step_date = st.select_slider(
+            "Date",
+            options=data['dates'],
+            value=data['dates'][step_idx],
+            format_func=lambda d: d.strftime("%b %d, '%y"),
+        )
+        st.session_state['step_idx'] = data['dates'].index(step_date)
+        step_idx   = st.session_state['step_idx']
+        date_range = (step_date, step_date)
+
+        playing = st.session_state.get('playing', False)
+        nb1, nb2, nb3, nb4 = st.columns(4)
+        with nb1:
+            if st.button("⏮", use_container_width=True, key="btn_first"):
+                st.session_state.update({'step_idx': 0, 'playing': False})
+                st.rerun()
+        with nb2:
+            if st.button("◀", use_container_width=True, key="btn_prev"):
+                st.session_state.update({'step_idx': max(0, step_idx - 1), 'playing': False})
+                st.rerun()
+        with nb3:
+            if st.button("⏸" if playing else "▶", use_container_width=True, key="btn_play"):
+                st.session_state['playing'] = not playing
+                st.rerun()
+        with nb4:
+            if st.button("▶▶", use_container_width=True, key="btn_next"):
+                st.session_state.update({'step_idx': min(_n_dates - 1, step_idx + 1), 'playing': False})
+                st.rerun()
 
 with col_rank:
     _rk = st.session_state.get('rank_slider')
@@ -750,21 +790,29 @@ majority_f = majority[:, pos_indices]
 share_f    = share[:, pos_indices]
 
 # ── Sort ──────────────────────────────────────────────────────────────────────
+# In Step mode, sort is anchored to the most recent date so rows stay stable
+# as you step through time.
 n_vis = len(visible_bin_indices)
+if date_mode == "Step":
+    _anchor = data['items'][visible_bin_indices][:, [-1], :]
+    majority_sort, _ = compute_majority(_anchor, n_items)
+else:
+    majority_sort = majority
+
 if sort_mode == "Index":
     order = np.arange(n_vis)
 elif sort_mode == f"{bin_term.capitalize()} Rank":
     order = np.argsort(data['bin_ranks'][visible_bin_indices], kind='stable')
 elif sort_mode == "Similarity":
-    top4  = majority[:, :4]
+    top4  = majority_sort[:, :4]
     keys  = [''.join(f'{int(x):x}' for x in row) for row in top4]
     order = np.argsort(keys, kind='stable')
 elif sort_mode == "Top-rank":
-    keys  = [''.join(f'{int(x):x}' for x in row) for row in majority]
+    keys  = [''.join(f'{int(x):x}' for x in row) for row in majority_sort]
     order = np.argsort(keys, kind='stable')
 elif sort_mode == "Selected Share":
     sel_idx_set = [item_codes.index(i) for i in selected_items]
-    top10       = majority[:, :10]
+    top10       = majority_sort[:, :10]
     share_count = np.isin(top10, sel_idx_set).sum(axis=1)
     order       = np.argsort(-share_count, kind='stable')
 else:
@@ -871,7 +919,19 @@ st.markdown(
 date_count = len(date_indices)
 multi_date = date_count > 1
 
-if multi_date:
+if date_mode == "Step":
+    _playing_badge = (
+        ' · <span style="color:#B91C1C;font-weight:500;">▶ playing</span>'
+        if st.session_state.get('playing') else ''
+    )
+    d0 = date_range[0].strftime("%b %d, %Y")
+    _step_num = step_idx + 1
+    mode_sentence = (
+        f"Step mode — snapshot {_step_num} of {len(data['dates'])} ({d0}). "
+        f"Row order is anchored to the most recent snapshot so bins stay in place as you step."
+    )
+    _date_label = f"snapshot {_step_num}/{len(data['dates'])}{_playing_badge}"
+elif multi_date:
     d0 = date_range[0].strftime("%b %d, %Y")
     d1 = date_range[1].strftime("%b %d, %Y")
     mode_sentence = (
@@ -879,9 +939,11 @@ if multi_date:
         f"({d0} → {d1}), with ties broken by the most recent week. "
         f"Hover to see the majority share — how often that {item_term} actually held the position."
     )
+    _date_label = f"{date_count} snapshots"
 else:
     d0 = date_range[0].strftime("%b %d, %Y")
-    mode_sentence = f"Showing a single snapshot ({d0}): each cell is the {item_term} at that position for that week."
+    mode_sentence = f"Showing a single snapshot ({d0}): each cell is the {item_term} at that position."
+    _date_label = "1 snapshot"
 
 summary_html = f"""
 <div style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#4A4A4A;
@@ -892,7 +954,7 @@ summary_html = f"""
                 margin-bottom:4px;">View summary</div>
     <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
     <b>{n_show_pos}</b> position{'s' if n_show_pos != 1 else ''} ·
-    <b>{date_count}</b> snapshot{'s' if multi_date else ''} ·
+    {_date_label} ·
     regions: <b>{', '.join(sorted(set(regions_active)))}</b> ·
     sort: <b>{sort_mode}</b>
     <div style="margin-top:5px;color:#4A4A4A;">{mode_sentence}</div>
@@ -1145,3 +1207,14 @@ _new_params = {
 }
 if dict(st.query_params) != _new_params:
     st.query_params.update(_new_params)
+
+# ── Step-mode auto-play ────────────────────────────────────────────────────────
+# Sleep AFTER the chart has been sent to the browser, then advance and rerun.
+if date_mode == "Step" and st.session_state.get('playing', False):
+    _step = st.session_state.get('step_idx', 0)
+    if _step < len(data['dates']) - 1:
+        time.sleep(0.5)
+        st.session_state['step_idx'] = _step + 1
+        st.rerun()
+    else:
+        st.session_state['playing'] = False
