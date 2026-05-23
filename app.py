@@ -637,7 +637,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-col_regions, col_items = st.columns([2, 5])
+col_regions, col_items = st.columns(2)
 
 with col_regions:
     if 'regions_pills' in st.session_state:
