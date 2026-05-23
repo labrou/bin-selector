@@ -413,19 +413,20 @@ st.markdown(f"""
     .stButton button {{
         font-family: 'IBM Plex Mono', monospace !important;
         font-size: 10px !important;
-        letter-spacing: 0.08em !important;
-        text-transform: uppercase !important;
-        border-radius: 0 !important;
-        border: 1px solid #2A2A2A !important;
+        letter-spacing: 0.04em !important;
+        text-transform: none !important;
+        border-radius: 99px !important;
+        border: 1px solid #CCCCCC !important;
         background: transparent !important;
-        color: {INK} !important;
-        padding: 1px 8px !important;
-        min-height: 26px !important;
+        color: #888888 !important;
+        padding: 1px 12px !important;
+        min-height: 24px !important;
         line-height: 1.4 !important;
     }}
     .stButton button:hover {{
-        background: {INK} !important;
-        color: {BG} !important;
+        border-color: #888888 !important;
+        color: {INK} !important;
+        background: transparent !important;
     }}
     div[role="radiogroup"] label {{
         font-family: 'IBM Plex Mono', monospace !important;
@@ -660,9 +661,9 @@ with col_regions:
     )
     rc1, rc2, _ = st.columns([2, 2, 4])
     with rc1:
-        st.button("All",  key="btn_reg_all",  use_container_width=True, on_click=_reg_all)
+        st.button("all",  key="btn_reg_all",  on_click=_reg_all)
     with rc2:
-        st.button("None", key="btn_reg_none", use_container_width=True, on_click=_reg_none)
+        st.button("none", key="btn_reg_none", on_click=_reg_none)
 
 with col_items:
     if 'items_pills' not in st.session_state:
@@ -678,12 +679,11 @@ with col_items:
         selection_mode="multi",
         key="items_pills",
     )
-    st.caption(f"Click to highlight · unselected {item_term}s dim")
     ic1, ic2, _ = st.columns([1, 1, 8])
     with ic1:
-        st.button("All",  key="btn_all",   on_click=_items_all)
+        st.button("all",  key="btn_all",   on_click=_items_all)
     with ic2:
-        st.button("None", key="btn_clear", on_click=_items_none)
+        st.button("none", key="btn_clear", on_click=_items_none)
 
 # ── Row 2: Ranges — Date / Bin Rank / Position ────────────────────────────────
 st.divider()
