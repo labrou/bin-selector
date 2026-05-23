@@ -673,18 +673,26 @@ with col_items:
     def _items_none(): st.session_state['items_pills'] = []
 
     selected_items = st.pills(
-        f"{item_term.capitalize()}s (toggle to highlight; unselected {item_term}s dim)",
+        f"{item_term.capitalize()}s",
         pill_items,
         selection_mode="multi",
         key="items_pills",
     )
-    ic1, ic2, _ = st.columns([1, 1, 8])
+    st.caption(f"Click to highlight · unselected {item_term}s dim")
+    ic1, ic2, _ = st.columns([1, 1, 14])
     with ic1:
         st.button("All",  key="btn_all",   use_container_width=True, on_click=_items_all)
     with ic2:
         st.button("None", key="btn_clear", use_container_width=True, on_click=_items_none)
 
 # ── Row 2: Ranges — Date / Bin Rank / Position ────────────────────────────────
+st.divider()
+
+# Defaults for the one-rerun lag when the user switches date modes
+step_idx  = 0
+_n_window = len(data['dates'])
+playing   = False
+
 col_date, col_rank, col_pos = st.columns(3)
 
 with col_date:
@@ -699,19 +707,32 @@ with col_date:
             key="wk_slider",
         )
     else:
-        _n_dates = len(data['dates'])
-        if st.session_state.get('step_idx', _n_dates - 1) >= _n_dates:
-            st.session_state['step_idx'] = _n_dates - 1
-        step_idx  = st.session_state.get('step_idx', _n_dates - 1)
-        step_date = st.select_slider(
+        # Dual-handle slider to define the stepping window
+        _all_dates = data['dates']
+        _sw_stored = st.session_state.get('step_range', (_all_dates[0], _all_dates[-1]))
+        if _sw_stored[0] not in _all_dates or _sw_stored[1] not in _all_dates:
+            _sw_stored = (_all_dates[0], _all_dates[-1])
+
+        step_window = st.select_slider(
             "Date",
-            options=data['dates'],
-            value=data['dates'][step_idx],
+            options=_all_dates,
+            value=_sw_stored,
             format_func=lambda d: d.strftime("%b %d, '%y"),
+            key="step_range",
         )
-        st.session_state['step_idx'] = data['dates'].index(step_date)
-        step_idx   = st.session_state['step_idx']
+        _range_start     = _all_dates.index(step_window[0])
+        _range_end       = _all_dates.index(step_window[1])
+        _dates_in_window = _all_dates[_range_start:_range_end + 1]
+        _n_window        = len(_dates_in_window)
+
+        _raw_idx = st.session_state.get('step_idx', 0)
+        if _raw_idx >= _n_window:
+            st.session_state['step_idx'] = max(0, _n_window - 1)
+        step_idx  = st.session_state.get('step_idx', 0)
+        step_date = _dates_in_window[step_idx]
         date_range = (step_date, step_date)
+
+        st.caption(f"Step {step_idx + 1} of {_n_window}  ·  {step_date.strftime('%b %d, %Y')}")
 
         playing = st.session_state.get('playing', False)
         nb1, nb2, nb3, nb4 = st.columns(4)
@@ -729,13 +750,12 @@ with col_date:
                 st.rerun()
         with nb4:
             if st.button("▶▶", use_container_width=True, key="btn_next"):
-                st.session_state.update({'step_idx': min(_n_dates - 1, step_idx + 1), 'playing': False})
+                st.session_state.update({'step_idx': min(_n_window - 1, step_idx + 1), 'playing': False})
                 st.rerun()
 
     date_mode = st.radio(
-        "Date mode", ["Range", "Step"],
+        "Mode", ["Range", "Step"],
         horizontal=True, key="date_mode",
-        label_visibility="collapsed",
     )
     if date_mode == "Range":
         st.session_state['playing'] = False
@@ -942,10 +962,10 @@ if date_mode == "Step":
     d0 = date_range[0].strftime("%b %d, %Y")
     _step_num = step_idx + 1
     mode_sentence = (
-        f"Step mode — snapshot {_step_num} of {len(data['dates'])} ({d0}). "
+        f"Step mode — snapshot {_step_num} of {_n_window} ({d0}). "
         f"Row order is anchored to the most recent snapshot so bins stay in place as you step."
     )
-    _date_label = f"snapshot {_step_num}/{len(data['dates'])}{_playing_badge}"
+    _date_label = f"snapshot {_step_num}/{_n_window}{_playing_badge}"
 elif multi_date:
     d0 = date_range[0].strftime("%b %d, %Y")
     d1 = date_range[1].strftime("%b %d, %Y")
@@ -1232,7 +1252,11 @@ if dict(st.query_params) != _new_params:
 # Sleep AFTER the chart has been sent to the browser, then advance and rerun.
 if date_mode == "Step" and st.session_state.get('playing', False):
     _step = st.session_state.get('step_idx', 0)
-    if _step < len(data['dates']) - 1:
+    _sw   = st.session_state.get('step_range', (data['dates'][0], data['dates'][-1]))
+    _sw_s = data['dates'].index(_sw[0]) if _sw[0] in data['dates'] else 0
+    _sw_e = data['dates'].index(_sw[1]) if _sw[1] in data['dates'] else len(data['dates']) - 1
+    _n_win_auto = _sw_e - _sw_s + 1
+    if _step < _n_win_auto - 1:
         time.sleep(0.5)
         st.session_state['step_idx'] = _step + 1
         st.rerun()
