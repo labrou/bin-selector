@@ -626,17 +626,32 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Control row 1: Regions + Items ────────────────────────────────────────────
+# ── Row 1: Filters — Regions + Items ──────────────────────────────────────────
+st.markdown(
+    f'<style>.pill-btn button{{font-size:10px !important;padding:2px 10px !important;'
+    f'height:auto !important;min-height:0 !important;}}</style>',
+    unsafe_allow_html=True,
+)
+
 col_regions, col_items = st.columns([2, 5])
 
 with col_regions:
-    # Guard: session state may contain region values from a previous dataset or URL params
     if 'regions_pills' in st.session_state:
         valid = [r for r in st.session_state['regions_pills'] if r in available_regions]
         if valid:
             st.session_state['regions_pills'] = valid
         else:
             del st.session_state['regions_pills']
+
+    rc1, rc2, _ = st.columns([1, 1, 4])
+    with rc1:
+        if st.button("All", key="btn_reg_all", use_container_width=True):
+            st.session_state['regions_pills'] = list(available_regions)
+            st.rerun()
+    with rc2:
+        if st.button("None", key="btn_reg_none", use_container_width=True):
+            st.session_state['regions_pills'] = []
+            st.rerun()
 
     selected_regions = st.pills(
         "Regions",
@@ -650,13 +665,13 @@ with col_items:
     if 'items_pills' not in st.session_state:
         st.session_state['items_pills'] = list(pill_items)
 
-    bc1, bc2, _ = st.columns([1, 1, 6])
-    with bc1:
-        if st.button("Select all", use_container_width=True, key="btn_all"):
+    ic1, ic2, _ = st.columns([1, 1, 6])
+    with ic1:
+        if st.button("All", use_container_width=True, key="btn_all"):
             st.session_state['items_pills'] = list(pill_items)
             st.rerun()
-    with bc2:
-        if st.button("Clear", use_container_width=True, key="btn_clear"):
+    with ic2:
+        if st.button("None", use_container_width=True, key="btn_clear"):
             st.session_state['items_pills'] = []
             st.rerun()
 
@@ -667,7 +682,7 @@ with col_items:
         key="items_pills",
     )
 
-# ── Control row 2: Date / Rank / Position ─────────────────────────────────────
+# ── Row 2: Ranges — Date / Bin Rank / Position ────────────────────────────────
 col_date, col_rank, col_pos = st.columns(3)
 
 with col_date:
@@ -733,36 +748,25 @@ with col_pos:
         key="pos_slider",
     )
 
-# ── Control row 3: Sort + Cell size ───────────────────────────────────────────
-col_sort, col_size = st.columns([3, 2])
-
+# ── Row 3: Sort (full width) ───────────────────────────────────────────────────
 n_sel        = len(selected_items) if selected_items else 0
 n_pill_items = len(pill_items)
-with col_sort:
-    sort_options = ["Index", "Similarity", f"{bin_term.capitalize()} Rank", "Top-rank"]
-    if 0 < n_sel < n_pill_items:
-        sort_options.append("Selected Share")
 
-    # If stored sort is no longer valid (e.g. Selected Share removed), reset
-    if st.session_state.get('sort_radio') not in sort_options:
-        st.session_state['sort_radio'] = 'Similarity'
+sort_options = ["Index", "Similarity", f"{bin_term.capitalize()} Rank", "Top-rank"]
+if 0 < n_sel < n_pill_items:
+    sort_options.append("Selected Share")
 
-    sort_mode = st.radio(
-        f"Sort {bin_term}s by",
-        sort_options,
-        index=sort_options.index(st.session_state.get('sort_radio', 'Similarity')),
-        horizontal=True,
-        key="sort_radio",
-    )
-    st.caption(sort_descriptions(bin_term, item_term).get(sort_mode, ""))
+if st.session_state.get('sort_radio') not in sort_options:
+    st.session_state['sort_radio'] = 'Similarity'
 
-with col_size:
-    sc1, sc2 = st.columns([3, 2])
-    with sc1:
-        cell_size = st.slider("Cell size (px)", 6, 28, 12, key="cell_sz")
-    with sc2:
-        st.write("")
-        auto_fit = st.checkbox("Auto-fit", value=True, key="auto_fit_cb")
+sort_mode = st.radio(
+    f"Sort {bin_term}s by",
+    sort_options,
+    index=sort_options.index(st.session_state.get('sort_radio', 'Similarity')),
+    horizontal=True,
+    key="sort_radio",
+)
+st.caption(sort_descriptions(bin_term, item_term).get(sort_mode, ""))
 
 # ── Filtering ─────────────────────────────────────────────────────────────────
 regions_active = selected_regions if selected_regions else available_regions
@@ -843,6 +847,14 @@ for i in range(n_items):
     c = effective_color(i)
     colorscale.append([(i + 1) / _n, c])
     colorscale.append([(i + 2) / _n, c])
+
+# ── Cell size controls (above heatmap) ───────────────────────────────────────
+_sz1, _sz2, _ = st.columns([2, 1, 5])
+with _sz1:
+    cell_size = st.slider("Cell size (px)", 6, 28, 12, key="cell_sz")
+with _sz2:
+    st.write("")
+    auto_fit = st.checkbox("Auto-fit", value=True, key="auto_fit_cb")
 
 # ── Sizing ────────────────────────────────────────────────────────────────────
 container_w = 900
