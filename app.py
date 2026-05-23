@@ -647,6 +647,10 @@ with col_regions:
         else:
             st.session_state['regions_pills'] = valid  # preserve empty (None clicked)
 
+    _all_reg  = list(available_regions)
+    def _reg_all():  st.session_state['regions_pills'] = _all_reg
+    def _reg_none(): st.session_state['regions_pills'] = []
+
     selected_regions = st.pills(
         "Regions",
         available_regions,
@@ -656,17 +660,17 @@ with col_regions:
     )
     rc1, rc2, _ = st.columns([2, 2, 4])
     with rc1:
-        if st.button("All", key="btn_reg_all", use_container_width=True):
-            st.session_state['regions_pills'] = list(available_regions)
-            st.rerun()
+        st.button("All",  key="btn_reg_all",  use_container_width=True, on_click=_reg_all)
     with rc2:
-        if st.button("None", key="btn_reg_none", use_container_width=True):
-            st.session_state['regions_pills'] = []
-            st.rerun()
+        st.button("None", key="btn_reg_none", use_container_width=True, on_click=_reg_none)
 
 with col_items:
     if 'items_pills' not in st.session_state:
         st.session_state['items_pills'] = list(pill_items)
+
+    _all_items = list(pill_items)
+    def _items_all():  st.session_state['items_pills'] = _all_items
+    def _items_none(): st.session_state['items_pills'] = []
 
     selected_items = st.pills(
         f"{item_term.capitalize()}s (toggle to highlight; unselected {item_term}s dim)",
@@ -676,13 +680,9 @@ with col_items:
     )
     ic1, ic2, _ = st.columns([1, 1, 8])
     with ic1:
-        if st.button("All", key="btn_all", use_container_width=True):
-            st.session_state['items_pills'] = list(pill_items)
-            st.rerun()
+        st.button("All",  key="btn_all",   use_container_width=True, on_click=_items_all)
     with ic2:
-        if st.button("None", key="btn_clear", use_container_width=True):
-            st.session_state['items_pills'] = []
-            st.rerun()
+        st.button("None", key="btn_clear", use_container_width=True, on_click=_items_none)
 
 # ── Row 2: Ranges — Date / Bin Rank / Position ────────────────────────────────
 col_date, col_rank, col_pos = st.columns(3)
