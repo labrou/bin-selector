@@ -246,9 +246,7 @@ Two text inputs in the sidebar let you rename the domain vocabulary:
 
 ## Sort modes
 
-All sort modes order the **rows** of the heatmap. Keys are computed over
-the full majority array (all positions), so narrowing the position range
-does not change row order. Ties fall back to stable bin-index order.
+All sort modes order the **rows** of the heatmap. Ties fall back to stable bin-index order.
 
 ### Index
 
@@ -267,14 +265,16 @@ the top-ranked bins share a distinct item profile?"
 
 ### Top-rank
 
-Lexicographic sort over all positions. Position 1 is perfectly grouped; later
-positions are sorted to resolve ties in earlier ones.
+Groups bins that share the same item at position 1; ties are resolved by
+position 2, then 3, and so on — a strict left-to-right sort. Use this to find
+bins with an identical opening sequence.
 
 ### Selected Share
 
 Available when 1 to N−1 distinctly-coloured items are selected. Ranks bins
-by how many of their top-10 positions are held by the selected items. Use this
-to find bins that lean hardest on a specific item set.
+by what share of the **visible** positions are held by the selected items —
+bins where your chosen items dominate rise to the top. Responds to the
+position range filter.
 
 ---
 

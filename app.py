@@ -78,8 +78,8 @@ def sort_descriptions(bt, it):
         "Index":          f"Alphabetical order of {bt} ID — no analytical grouping; stable baseline.",
         "Similarity":     f"{bt.capitalize()}s sharing the same {it}s at positions 1–4 cluster together, surfacing archetypes as broad horizontal color bands. Default.",
         f"{bt.capitalize()} Rank": f"Top = highest-ranked {bt}s (rank 1). Use this when the question is about rank: do top {bt}s share a distinct profile?",
-        "Top-rank":       f"Full lexicographic sort over all positions. The leftmost column is perfectly grouped; later columns fragment.",
-        "Selected Share": f"{bt.capitalize()}s ranked by how many of their top-10 positions are held by the selected {it}s. Available when 1 to N−1 {it}s are highlighted.",
+        "Top-rank":       f"Groups {bt}s that share the same {it} at position 1; ties are resolved by position 2, then 3, and so on — a strict left-to-right sort. Use this to find {bt}s with an identical opening sequence.",
+        "Selected Share": f"Ranks {bt}s by what share of the visible positions are held by the selected {it}s — {bt}s where your chosen {it}s dominate rise to the top. Available when 1 to N−1 {it}s are highlighted.",
     }
 
 # ============ DATA GENERATION ============
@@ -688,8 +688,8 @@ order stays stable as you narrow the window.
 | **Index** | Original data order — unsorted baseline |
 | **Similarity** | Groups {bin_term}s that share the same {item_term}s at positions 1–4 (default) |
 | **{bin_term.capitalize()} Rank** | Ascending by global rank — top-ranked {bin_term}s at top |
-| **Top-rank** | Lexicographic sort across all positions |
-| **Selected Share** | Ranks {bin_term}s by how many of their top-10 slots are held by the selected {item_term}s (available when 1 – N−1 items are highlighted) |
+| **Top-rank** | Groups {bin_term}s that share the same {item_term} at position 1; ties resolved by position 2, then 3, and so on |
+| **Selected Share** | Ranks {bin_term}s by what share of the **visible** positions are held by the selected {item_term}s (available when 1 – N−1 items are highlighted) |
 
 ---
 
@@ -896,8 +896,7 @@ elif sort_mode == "Top-rank":
     order = np.argsort(keys, kind='stable')
 elif sort_mode == "Selected Share":
     sel_idx_set = [item_codes.index(i) for i in selected_items]
-    top10       = majority_sort[:, :10]
-    share_count = np.isin(top10, sel_idx_set).sum(axis=1)
+    share_count = np.isin(majority_f, sel_idx_set).sum(axis=1)
     order       = np.argsort(-share_count, kind='stable')
 else:
     order = np.arange(n_vis)
