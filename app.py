@@ -923,7 +923,7 @@ if 0 < n_sel < n_pill_items:
 if st.session_state.get('sort_radio') not in sort_options:
     st.session_state['sort_radio'] = 'Similarity'
 
-_sort_lbl_col, _sort_q_col, _ = st.columns([1.4, 0.3, 8.3], gap="small")
+_sort_lbl_col, _sort_q_col, _ = st.columns([1.4, 1.0, 7.6], gap="small")
 with _sort_lbl_col:
     st.markdown(
         f'<p style="font-family:IBM Plex Mono,monospace;font-size:10px;'
@@ -932,7 +932,7 @@ with _sort_lbl_col:
         unsafe_allow_html=True,
     )
 with _sort_q_col:
-    if st.button("?", key="sort_guide_btn"):
+    if st.button("sort guide", key="sort_guide_btn"):
         _show_sort_guide()
 
 sort_mode = st.radio(
