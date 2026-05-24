@@ -924,21 +924,27 @@ if 0 < n_sel < n_pill_items:
 if st.session_state.get('sort_radio') not in sort_options:
     st.session_state['sort_radio'] = 'Similarity'
 
-_sort_col, _sort_help_col = st.columns([12, 1])
-with _sort_col:
-    sort_mode = st.radio(
-        f"Sort {bin_term}s by",
-        sort_options,
-        index=sort_options.index(st.session_state.get('sort_radio', 'Similarity')),
-        horizontal=True,
-        key="sort_radio",
+_sort_lbl_col, _sort_q_col, _ = st.columns([1.4, 0.3, 8.3], gap="small")
+with _sort_lbl_col:
+    st.markdown(
+        f'<p style="font-family:IBM Plex Mono,monospace;font-size:10px;'
+        f'letter-spacing:0.12em;text-transform:uppercase;color:{MUTED};'
+        f'margin:0;padding-top:2px;">Sort {bin_term}s by</p>',
+        unsafe_allow_html=True,
     )
-    st.caption(sort_descriptions(bin_term, item_term).get(sort_mode, ""))
-with _sort_help_col:
-    st.write("")
-    st.write("")
+with _sort_q_col:
     if st.button("?", key="sort_guide_btn"):
         _show_sort_guide()
+
+sort_mode = st.radio(
+    f"Sort {bin_term}s by",
+    sort_options,
+    index=sort_options.index(st.session_state.get('sort_radio', 'Similarity')),
+    horizontal=True,
+    key="sort_radio",
+    label_visibility="collapsed",
+)
+st.caption(sort_descriptions(bin_term, item_term).get(sort_mode, ""))
 
 # ── Filtering ─────────────────────────────────────────────────────────────────
 regions_active = selected_regions if selected_regions else available_regions
