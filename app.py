@@ -360,6 +360,13 @@ def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, segments,
 
 
 # ============ APP ============
+# width='content'/'stretch' was introduced in Streamlit ~1.51; older versions
+# require use_container_width. Detect once so both envs get correct behaviour.
+_st_ver = tuple(int(x) for x in st.__version__.split('.')[:2])
+_chart_own_width  = {'width': 'content'}  if _st_ver >= (1, 51) else {'use_container_width': False}
+_chart_full_width = {'width': 'stretch'}  if _st_ver >= (1, 51) else {'use_container_width': True}
+_btn_full_width   = {'width': 'stretch'}  if _st_ver >= (1, 51) else {'use_container_width': True}
+
 st.set_page_config(
     page_title="Ranked Placement Atlas",
     layout="wide",
@@ -1145,7 +1152,7 @@ with _dl_csv_col:
         csv_bytes,
         file_name="atlas_view.csv",
         mime="text/csv",
-        width='stretch',
+        **_btn_full_width,
     )
 
 # ── Build figure ──────────────────────────────────────────────────────────────
@@ -1241,7 +1248,7 @@ fig.update_yaxes(
 # ── Render chart ──────────────────────────────────────────────────────────────
 chart_event = st.plotly_chart(
     fig,
-    width='content',
+    **_chart_own_width,
     on_select="rerun",
     key="main_chart",
 )
@@ -1266,7 +1273,7 @@ with _dl_html_col:
         st.session_state['_html_bytes'],
         file_name="atlas_view.html",
         mime="text/html",
-        width='stretch',
+        **_btn_full_width,
     )
 
 # ── Drill-down ────────────────────────────────────────────────────────────────
@@ -1352,7 +1359,7 @@ if drill_bin != _no_sel:
                 showgrid=False, zeroline=False, tickangle=45,
                 tickfont=dict(size=8, family='IBM Plex Mono', color=MUTED),
             )
-            st.plotly_chart(mini_fig, width='content')
+            st.plotly_chart(mini_fig, **_chart_own_width)
 
             # CSV for this bin's time series
             _n_di, _n_dp = drill_items.shape
