@@ -156,8 +156,8 @@ A Plotly `Heatmap` trace where:
 - **columns** are positions (position 1 at left).
 - **cell color** encodes the item at that (bin, position) — or empty
   (background) if the bin has no data for that position.
-- When multiple dates are selected, each cell shows the **modal item** across
-  those dates, with ties broken by recency.
+- When multiple dates are selected, each cell shows the **most frequent item**
+  across those dates, with ties broken by recency.
 - **Hover** shows bin name, rank, region, position, item label, and majority
   share.
 

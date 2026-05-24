@@ -762,7 +762,7 @@ with _title_col:
     st.markdown(f"""
 <div class="title-block">
     <div class="title" style="font-family:{_title_font_css};font-style:{_title_font_style};">{_custom_title}</div>
-    <div class="subtitle">{len(data['bin_names'])} {bin_term}s × {n_pos_total} ranked positions × {n_items} {item_term}s × {len(data['dates'])} snapshots. When multiple dates are selected, each cell shows the modal {item_term} across the range (ties broken by recency).</div>
+    <div class="subtitle">{len(data['bin_names'])} {bin_term}s &times; {n_pos_total} positions &times; {n_items} {item_term}s &times; {len(data['dates'])} snapshots. When multiple dates are selected, each cell shows the most frequent {item_term} at that position across the selected dates — ties broken by the most recent snapshot.</div>
 </div>
 """, unsafe_allow_html=True)
 with _help_col:
