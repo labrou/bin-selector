@@ -81,7 +81,7 @@ for the session.
 | `position` | ✓ | Integer rank within the bin (1-based or 0-based; both work) |
 | `item` | ✓ | Any string label — no limit on unique values |
 | `bin_rank` | ✓ | Global rank of the bin (integer; any range, including 0-based) |
-| `segment` | ✓ | Any string grouping / filter attribute; not restricted to a fixed set. Rename the display label via **Labels → Grouping attribute**. |
+| `segment` | ✓ | Any string grouping / filter attribute; not restricted to a fixed set. Rename the display label via **Labels → Bin grouping attribute**. |
 
 **Multiple segment values per bin_id.** If the same `bin_id` appears with more than one
 `segment` value, each `(bin_id, segment)` pair is treated as a distinct display unit.
@@ -184,7 +184,7 @@ export row below the view summary.
 
 **`<region_term>`s** · Toggleable pills showing all values of the bin's grouping
 attribute. Default: all selected. Filtering hides bins whose grouping value is
-not selected. Rename this attribute via **Labels → Grouping attribute**.
+not selected. Rename this attribute via **Labels → Bin grouping attribute**.
 **all** / **none** buttons below the pills select or clear all.
 
 **Items** · Toggleable pills for the distinctly-coloured items (up to 11).
