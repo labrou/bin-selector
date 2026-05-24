@@ -235,12 +235,24 @@ self-contained HTML file.
 A **User guide** button in the top-right of the page opens a modal dialog
 with a full walkthrough of every control.
 
-### Labels (sidebar)
+### Sidebar
 
-Two text inputs in the sidebar let you rename the domain vocabulary:
+The sidebar (arrow at top-left) contains four sections:
+
+**Data source** · Upload a CSV to replace the synthetic demo (see [Uploading your own data](#uploading-your-own-data)).
+
+**Labels** · Two text inputs rename the domain vocabulary throughout the UI:
 
 - **Bins are called** — replaces "bin" throughout the UI.
 - **Items are called** — replaces "item" throughout the UI.
+
+**Display** · Visual customisation:
+
+- **Title** — editable heading text; defaults to "Ranked Placement Atlas".
+- **Title font** — four options: *Fraunces* (italic serif, default), *Playfair Display*, *DM Serif Display*, *IBM Plex Sans*.
+- **Background color** — color picker; updates the page, sidebar, chart backgrounds, and empty-cell color simultaneously.
+
+**Share this view** · Copies the current URL (with all filters, sort, and date range encoded) to the clipboard.
 
 ---
 

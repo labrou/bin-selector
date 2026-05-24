@@ -454,6 +454,13 @@ data = generate_data()
 
 with st.sidebar:
     st.markdown(
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:11px;'
+        f'color:{MUTED};margin-bottom:4px;">Upload your own data, rename the vocabulary, '
+        f'and customise the display — then share a link to your exact view.</div>',
+        unsafe_allow_html=True,
+    )
+    st.divider()
+    st.markdown(
         f'<div style="font-family:IBM Plex Mono,monospace;font-size:10px;'
         f'letter-spacing:0.18em;text-transform:uppercase;color:{MUTED};'
         f'margin-bottom:8px;">Data source</div>',
@@ -733,6 +740,16 @@ showing how its position-by-position {item_term} mix evolved over all dates.
 
 ---
 
+### Display customisation (sidebar)
+
+Open the **sidebar** (arrow at top-left) to find the **Display** section:
+
+- **Title** — change the heading text to match your domain or presentation.
+- **Title font** — choose from four options: *Fraunces* (italic serif, default), *Playfair Display* (classic serif), *DM Serif Display* (modern serif), or *IBM Plex Sans* (clean sans-serif).
+- **Background color** — pick any colour; the page background, sidebar, chart area, and empty-cell colour all update together.
+
+---
+
 ### Uploading your own data
 
 Open the **sidebar** (arrow at top-left) and upload a CSV with these columns:
@@ -768,6 +785,12 @@ with _help_col:
     st.write("")
     if st.button("User guide", key="help_btn"):
         _show_user_guide()
+    st.markdown(
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:9px;'
+        f'color:{MUTED};text-align:right;margin-top:4px;line-height:1.4;">'
+        f'&#8592; sidebar:<br>data &amp; display</div>',
+        unsafe_allow_html=True,
+    )
 
 # ── Row 1: Filters — Regions + Items ──────────────────────────────────────────
 st.markdown(
