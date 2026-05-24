@@ -603,13 +603,13 @@ _pill_colors  = [item_colors[item_codes.index(it)] for it in pill_items]
 _colors_json  = json.dumps(_pill_colors)
 _regions_json = json.dumps(available_regions)
 _n_gray       = n_items - len(pill_items)
-st.iframe(
+st.html(
     f"""<script>
 (function(){{
   var C={_colors_json}, BG="{_custom_bg}", N=C.length, R={_regions_json}, NGRAY={_n_gray}, GRAY="{OTHER_COLOR}";
   function go(){{
     try{{
-      var gs=window.parent.document.querySelectorAll('[data-baseweb="button-group"]');
+      var gs=document.querySelectorAll('[data-baseweb="button-group"]');
       for(var i=0;i<gs.length;i++){{
         var bs=gs[i].querySelectorAll('button');
         // Exclude any previously-injected gray pills from the count
@@ -647,13 +647,12 @@ st.iframe(
   go();
   try{{
     new MutationObserver(go).observe(
-      window.parent.document.body,
+      document.body,
       {{subtree:true,childList:true,attributes:true,attributeFilter:['aria-pressed','aria-checked']}}
     );
   }}catch(e){{ setInterval(go,200); }}
 }})();
-</script>""",
-    height=0,
+</script>"""
 )
 
 # Apply URL query params to session state (only on fresh sessions)
