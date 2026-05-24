@@ -572,17 +572,17 @@ with st.sidebar:
         f'margin-bottom:8px;">Share this view</div>',
         unsafe_allow_html=True,
     )
-    st.iframe(
+    st.html(
         f"""<script>
 function copyAtlasLink(){{
   var btn=document.getElementById('share-btn');
   try{{
-    navigator.clipboard.writeText(window.parent.location.href).then(function(){{
+    navigator.clipboard.writeText(window.location.href).then(function(){{
       btn.textContent='Copied!';
       setTimeout(function(){{btn.textContent='Copy link';}},2000);
     }});
   }}catch(e){{
-    prompt('Copy this URL:',window.parent.location.href);
+    prompt('Copy this URL:',window.location.href);
   }}
 }}
 </script>
@@ -591,8 +591,7 @@ function copyAtlasLink(){{
          text-transform:uppercase;border:1px solid #2A2A2A;background:transparent;
          padding:6px 14px;cursor:pointer;color:#1A1A1A;width:100%;">
   Copy link
-</button>""",
-        height=40,
+</button>"""
     )
     st.caption("The link encodes your current filters, sort mode, and date range.")
 
