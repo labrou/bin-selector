@@ -81,10 +81,10 @@ for the session.
 | `position` | ✓ | Integer rank within the bin (1-based or 0-based; both work) |
 | `item` | ✓ | Any string label — no limit on unique values |
 | `bin_rank` | ✓ | Global rank of the bin (integer; any range, including 0-based) |
-| `region` | ✓ | Any string grouping label; not restricted to a fixed set |
+| `region` | ✓ | Any string grouping / filter attribute; not restricted to a fixed set. Rename the display label via **Labels → Regions are called**. |
 
-**Multiple regions per bin_id.** If the same `bin_id` appears in more than one
-region, each `(bin_id, region)` pair is treated as a distinct display unit.
+**Multiple region values per bin_id.** If the same `bin_id` appears with more than one
+`region` value, each `(bin_id, region)` pair is treated as a distinct display unit.
 The heatmap label becomes `"bin_id · region"`.
 
 **Duplicate rows.** Multiple rows for the same `(bin_id, region, date,
@@ -182,9 +182,10 @@ export row below the view summary.
 
 ### Row 1 — Filters
 
-**Regions** · Toggleable pills showing all region values in the data.
-Default: all selected. Filtering by region hides bins whose region is not
-selected. **all** / **none** buttons below the pills select or clear all.
+**`<region_term>`s** · Toggleable pills showing all values of the bin's grouping
+attribute. Default: all selected. Filtering hides bins whose grouping value is
+not selected. Rename this attribute via **Labels → Regions are called**.
+**all** / **none** buttons below the pills select or clear all.
 
 **Items** · Toggleable pills for the distinctly-coloured items (up to 11).
 Gray items are always visible in the heatmap but are not shown as pills.

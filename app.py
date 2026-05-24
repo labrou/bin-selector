@@ -552,8 +552,9 @@ with st.sidebar:
         f'margin-bottom:8px;">Labels</div>',
         unsafe_allow_html=True,
     )
-    bin_term  = st.text_input("Bins are called", "bin",  key="bin_term").strip()  or "bin"
-    item_term = st.text_input("Items are called", "item", key="item_term").strip() or "item"
+    bin_term    = st.text_input("Bins are called",    "bin",    key="bin_term").strip()    or "bin"
+    item_term   = st.text_input("Items are called",   "item",   key="item_term").strip()   or "item"
+    region_term = st.text_input("Regions are called", "region", key="region_term").strip() or "region"
 
     st.divider()
     st.markdown(
@@ -710,7 +711,7 @@ Hover any cell for exact values.
 
 ### Filters — Row 1
 
-**Regions** · Toggleable pills. Selecting a subset hides {bin_term}s whose region is not selected.
+**{region_term.capitalize()}s** · Toggleable pills. Selecting a subset hides {bin_term}s whose {region_term} is not selected.
 Use **all** / **none** to select or clear in one click.
 
 **{item_term.capitalize()}s** · Toggleable pills. Selection controls *highlighting*, not filtering —
@@ -788,7 +789,7 @@ Open the **sidebar** (arrow at top-left) and upload a CSV with these columns:
 | `position` | Integer rank within the {bin_term} (1-based or 0-based) |
 | `item` | Any string label |
 | `bin_rank` | Global rank of the {bin_term} |
-| `region` | Grouping label |
+| `region` | Grouping label — rename via **Labels → Regions are called** |
 
 If the same `bin_id` appears in multiple regions it becomes a distinct row
 labelled `bin_id · region`. Multiple rows for the same (bin, date, position)
@@ -850,7 +851,7 @@ with col_regions:
     def _reg_none(): st.session_state['regions_pills'] = []
 
     selected_regions = st.pills(
-        "Regions",
+        f"{region_term.capitalize()}s",
         available_regions,
         selection_mode="multi",
         default=available_regions,
@@ -1122,7 +1123,7 @@ summary_html = f"""
     <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
     <b>{n_show_pos}</b> position{'s' if n_show_pos != 1 else ''} ·
     {_date_label} ·
-    regions: <b>{', '.join(sorted(set(regions_active)))}</b> ·
+    {region_term}s: <b>{', '.join(sorted(set(regions_active)))}</b> ·
     sort: <b>{sort_mode}</b>
     <div style="margin-top:5px;color:#4A4A4A;">{mode_sentence}</div>
 </div>
