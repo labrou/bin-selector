@@ -554,7 +554,7 @@ with st.sidebar:
     )
     bin_term    = st.text_input("Bins are called",    "bin",    key="bin_term").strip()    or "bin"
     item_term   = st.text_input("Items are called",   "item",   key="item_term").strip()   or "item"
-    region_term = st.text_input("Regions are called", "region", key="region_term").strip() or "region"
+    region_term = st.text_input("Grouping attribute", "segment", key="region_term").strip() or "segment"
 
     st.divider()
     st.markdown(
@@ -789,7 +789,7 @@ Open the **sidebar** (arrow at top-left) and upload a CSV with these columns:
 | `position` | Integer rank within the {bin_term} (1-based or 0-based) |
 | `item` | Any string label |
 | `bin_rank` | Global rank of the {bin_term} |
-| `region` | Grouping label — rename via **Labels → Regions are called** |
+| `region` | Grouping / filter attribute — rename via **Labels → Grouping attribute** |
 
 If the same `bin_id` appears in multiple regions it becomes a distinct row
 labelled `bin_id · region`. Multiple rows for the same (bin, date, position)
