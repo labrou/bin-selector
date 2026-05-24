@@ -446,14 +446,17 @@ st.markdown(f"""
     [data-testid="stSidebar"] {{
         background-color: {_custom_bg};
     }}
+    .stSidebarCollapsedControl,
     [data-testid="collapsedControl"],
     [data-testid="stSidebarCollapsedControl"] {{
-        position: relative;
+        display: flex !important;
+        flex-direction: column;
+        align-items: center;
     }}
+    .stSidebarCollapsedControl::after,
     [data-testid="collapsedControl"]::after,
     [data-testid="stSidebarCollapsedControl"]::after {{
-        content: "data\\A display";
-        white-space: pre;
+        content: "settings";
         display: block;
         font-family: 'IBM Plex Mono', monospace;
         font-size: 8px;
@@ -461,7 +464,7 @@ st.markdown(f"""
         text-transform: uppercase;
         color: {MUTED};
         text-align: center;
-        margin-top: 4px;
+        margin-top: 2px;
         pointer-events: none;
     }}
 </style>
@@ -803,12 +806,6 @@ with _help_col:
     st.write("")
     if st.button("User guide", key="help_btn"):
         _show_user_guide()
-    st.markdown(
-        f'<div style="font-family:IBM Plex Mono,monospace;font-size:9px;'
-        f'color:{MUTED};text-align:right;margin-top:4px;line-height:1.4;">'
-        f'&#8592; sidebar:<br>data &amp; display</div>',
-        unsafe_allow_html=True,
-    )
 
 # ── Row 1: Filters — Regions + Items ──────────────────────────────────────────
 st.markdown(
