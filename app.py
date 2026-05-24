@@ -30,7 +30,6 @@ import io
 import json
 
 import streamlit as st
-import streamlit.components.v1 as components
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -542,7 +541,7 @@ with st.sidebar:
         f'margin-bottom:8px;">Share this view</div>',
         unsafe_allow_html=True,
     )
-    components.html(
+    st.iframe(
         f"""<script>
 function copyAtlasLink(){{
   var btn=document.getElementById('share-btn');
@@ -604,7 +603,7 @@ _pill_colors  = [item_colors[item_codes.index(it)] for it in pill_items]
 _colors_json  = json.dumps(_pill_colors)
 _regions_json = json.dumps(available_regions)
 _n_gray       = n_items - len(pill_items)
-components.html(
+st.iframe(
     f"""<script>
 (function(){{
   var C={_colors_json}, BG="{_custom_bg}", N=C.length, R={_regions_json}, NGRAY={_n_gray}, GRAY="{OTHER_COLOR}";
@@ -1078,7 +1077,7 @@ with _dl_csv_col:
         csv_bytes,
         file_name="atlas_view.csv",
         mime="text/csv",
-        use_container_width=True,
+        width='stretch',
     )
 
 # ── Build figure ──────────────────────────────────────────────────────────────
@@ -1174,7 +1173,7 @@ fig.update_yaxes(
 # ── Render chart ──────────────────────────────────────────────────────────────
 chart_event = st.plotly_chart(
     fig,
-    use_container_width=False,
+    width='content',
     on_select="rerun",
     key="main_chart",
 )
@@ -1187,7 +1186,7 @@ with _dl_html_col:
         _html.encode(),
         file_name="atlas_view.html",
         mime="text/html",
-        use_container_width=True,
+        width='stretch',
     )
 
 # ── Drill-down ────────────────────────────────────────────────────────────────
@@ -1273,7 +1272,7 @@ if drill_bin != _no_sel:
                 showgrid=False, zeroline=False, tickangle=45,
                 tickfont=dict(size=8, family='IBM Plex Mono', color=MUTED),
             )
-            st.plotly_chart(mini_fig, use_container_width=False)
+            st.plotly_chart(mini_fig, width='content')
 
             # CSV for this bin's time series
             drill_rows = []
