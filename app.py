@@ -180,7 +180,7 @@ def load_user_data(file_bytes: bytes, filename: str):
         st.error(f"Could not parse CSV: {exc}")
         return None
 
-    required = {'bin_id', 'date', 'position', 'item', 'bin_rank', 'region'}
+    required = {'bin_id', 'date', 'position', 'item', 'bin_rank', 'segment'}
     missing  = required - set(df.columns)
     if missing:
         st.error(f"CSV is missing columns: {', '.join(sorted(missing))}")
@@ -189,10 +189,10 @@ def load_user_data(file_bytes: bytes, filename: str):
     df['date']   = pd.to_datetime(df['date']).dt.date
     df['item']   = df['item'].astype(str)
     df['bin_id'] = df['bin_id'].astype(str)
-    df['region'] = df['region'].astype(str)
+    df['segment'] = df['segment'].astype(str)
 
-    # Composite key: a bin_id that appears in multiple regions becomes distinct rows
-    df['bin_key'] = df['bin_id'] + ' · ' + df['region']
+    # Composite key: a bin_id that appears in multiple segments becomes distinct rows
+    df['bin_key'] = df['bin_id'] + ' · ' + df['segment']
 
     # All items kept; order by descending frequency so callers can slice for colours
     user_items = df['item'].value_counts().index.tolist()
@@ -209,7 +209,7 @@ def load_user_data(file_bytes: bytes, filename: str):
         df = (df.groupby(key_cols, as_index=False)
                 .agg(item=('item', _majority_or_random),
                      bin_rank=('bin_rank', 'first'),
-                     region=('region', 'first')))
+                     segment=('segment', 'first')))
 
     bin_keys  = sorted(df['bin_key'].unique())
     dates     = sorted(df['date'].unique())
@@ -235,13 +235,13 @@ def load_user_data(file_bytes: bytes, filename: str):
     bin_meta = (
         df.drop_duplicates('bin_key')
         .set_index('bin_key')
-        .loc[bin_keys, ['bin_rank', 'region']]
+        .loc[bin_keys, ['bin_rank', 'segment']]
     )
 
     return {
         'items':       items_array,
         'bin_ranks':   bin_meta['bin_rank'].to_numpy().astype(int),
-        'bin_regions': bin_meta['region'].to_numpy().astype(str),
+        'bin_regions': bin_meta['segment'].to_numpy().astype(str),
         'bin_names':   np.array(bin_keys),
         'dates':       list(dates),
         'item_codes':  user_items,   # all items, frequency-ordered; no colours here
@@ -353,7 +353,7 @@ def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, regions,
             rows.append({
                 bin_term:         bname,
                 'rank':           int(ranks[j]),
-                'region':         regions[j],
+                'segment':        regions[j],
                 'position':       int(pos),
                 'item':           item_codes[int(items_grid[j, i])] if items_grid[j, i] >= 0 else '',
                 'majority_share': round(float(share_grid[j, i]), 4),
@@ -494,7 +494,7 @@ with st.sidebar:
     uploaded = st.file_uploader(
         "Upload CSV",
         type=["csv"],
-        help="Required columns: bin_id, date, position, item, bin_rank, region.",
+        help="Required columns: bin_id, date, position, item, bin_rank, segment.",
         label_visibility="collapsed",
     )
     colored_items = None   # set below when file is uploaded
@@ -540,7 +540,7 @@ with st.sidebar:
     else:
         st.caption("Using synthetic demo data. Upload a CSV to use your own data.")
         st.caption(
-            "Required columns: `bin_id`, `date`, `position`, `item`, `bin_rank`, `region`  \n"
+            "Required columns: `bin_id`, `date`, `position`, `item`, `bin_rank`, `segment`  \n"
             f"Up to {N_MAX_USER_ITEMS} items get distinct colours; extras shown in gray.  \n"
             "`bin_id` is used as the display name."
         )
@@ -789,10 +789,10 @@ Open the **sidebar** (arrow at top-left) and upload a CSV with these columns:
 | `position` | Integer rank within the {bin_term} (1-based or 0-based) |
 | `item` | Any string label |
 | `bin_rank` | Global rank of the {bin_term} |
-| `region` | Grouping / filter attribute — rename via **Labels → Grouping attribute** |
+| `segment` | Grouping / filter attribute — rename via **Labels → Grouping attribute** |
 
-If the same `bin_id` appears in multiple regions it becomes a distinct row
-labelled `bin_id · region`. Multiple rows for the same (bin, date, position)
+If the same `bin_id` appears with multiple `segment` values, each `(bin_id, segment)`
+pair becomes a distinct row labelled `bin_id · segment`. Multiple rows for the same (bin, date, position)
 are resolved by majority vote (random tiebreak).
 
 Up to **11** {item_term}s can receive distinct colours; the rest render in gray
@@ -1350,7 +1350,7 @@ if drill_bin != _no_sel:
             for wi, d in enumerate(drill_dates):
                 for pi, pos in enumerate(positions_disp):
                     drill_rows.append({
-                        bin_term: drill_bin, 'rank': int(bin_rank_v), 'region': bin_region,
+                        bin_term: drill_bin, 'rank': int(bin_rank_v), 'segment': bin_region,
                         'date': d.isoformat(), 'position': int(pos),
                         'item': item_codes[int(drill_items[wi, pi])] if drill_items[wi, pi] >= 0 else '',
                     })

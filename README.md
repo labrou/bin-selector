@@ -81,11 +81,11 @@ for the session.
 | `position` | ✓ | Integer rank within the bin (1-based or 0-based; both work) |
 | `item` | ✓ | Any string label — no limit on unique values |
 | `bin_rank` | ✓ | Global rank of the bin (integer; any range, including 0-based) |
-| `region` | ✓ | Any string grouping / filter attribute; not restricted to a fixed set. Rename the display label via **Labels → Grouping attribute**. |
+| `segment` | ✓ | Any string grouping / filter attribute; not restricted to a fixed set. Rename the display label via **Labels → Grouping attribute**. |
 
-**Multiple region values per bin_id.** If the same `bin_id` appears with more than one
-`region` value, each `(bin_id, region)` pair is treated as a distinct display unit.
-The heatmap label becomes `"bin_id · region"`.
+**Multiple segment values per bin_id.** If the same `bin_id` appears with more than one
+`segment` value, each `(bin_id, segment)` pair is treated as a distinct display unit.
+The heatmap label becomes `"bin_id · segment"`.
 
 **Duplicate rows.** Multiple rows for the same `(bin_id, region, date,
 position)` key are treated as repeated measurements. The most frequent item
