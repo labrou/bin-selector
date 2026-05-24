@@ -446,6 +446,24 @@ st.markdown(f"""
     [data-testid="stSidebar"] {{
         background-color: {_custom_bg};
     }}
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapsedControl"] {{
+        position: relative;
+    }}
+    [data-testid="collapsedControl"]::after,
+    [data-testid="stSidebarCollapsedControl"]::after {{
+        content: "data\\A display";
+        white-space: pre;
+        display: block;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 8px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: {MUTED};
+        text-align: center;
+        margin-top: 4px;
+        pointer-events: none;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
