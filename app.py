@@ -68,9 +68,15 @@ NUM_POSITIONS = 50
 NUM_WEEKS     = 52
 
 BG       = '#F7F4ED'
-PANEL_BG = '#FBFAF5'
 INK      = '#1A1A1A'
 MUTED    = '#6B6B6B'
+
+TITLE_FONTS = {
+    "Fraunces":         ("'Fraunces', Georgia, serif",          "italic"),
+    "Playfair Display": ("'Playfair Display', Georgia, serif",  "normal"),
+    "DM Serif Display": ("'DM Serif Display', Georgia, serif",  "normal"),
+    "IBM Plex Sans":    ("'IBM Plex Sans', sans-serif",         "normal"),
+}
 
 def sort_descriptions(bt, it):
     """Return sort-mode description strings using the active bin/item terminology."""
@@ -241,7 +247,7 @@ def load_user_data(file_bytes: bytes, filename: str):
 
 
 # ============ HELPERS ============
-def dim_color(hex_color, dim_amount=0.88, bg=PANEL_BG):
+def dim_color(hex_color, dim_amount=0.88, bg=BG):
     """Blend hex_color toward background by dim_amount (0=no dim, 1=full bg)."""
     fg     = tuple(int(hex_color[i:i+2], 16) for i in (1, 3, 5))
     bg_rgb = tuple(int(bg[i:i+2], 16) for i in (1, 3, 5))
@@ -359,13 +365,19 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Read display customisation from session state before CSS is injected
+_custom_bg         = st.session_state.get('bg_color', BG) or BG
+_title_font_key    = st.session_state.get('title_font', 'Fraunces')
+_title_font_css, _title_font_style = TITLE_FONTS.get(_title_font_key, TITLE_FONTS['Fraunces'])
+_custom_title      = st.session_state.get('custom_title', '') or 'Ranked Placement Atlas'
+
 # Custom styling
 st.markdown(f"""
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&family=Playfair+Display:wght@400;500&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <style>
-    .stApp {{ background-color: {BG}; }}
+    .stApp {{ background-color: {_custom_bg}; }}
     .main .block-container {{ max-width: 1400px; padding-top: 2rem; }}
     .title-block {{
         border-bottom: 1px solid #2A2A2A;
@@ -433,7 +445,7 @@ st.markdown(f"""
         font-size: 11px !important;
     }}
     [data-testid="stSidebar"] {{
-        background-color: {PANEL_BG};
+        background-color: {_custom_bg};
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -516,6 +528,17 @@ with st.sidebar:
     st.markdown(
         f'<div style="font-family:IBM Plex Mono,monospace;font-size:10px;'
         f'letter-spacing:0.18em;text-transform:uppercase;color:{MUTED};'
+        f'margin-bottom:8px;">Display</div>',
+        unsafe_allow_html=True,
+    )
+    st.text_input("Title", "Ranked Placement Atlas", key="custom_title")
+    st.radio("Title font", list(TITLE_FONTS.keys()), key="title_font")
+    st.color_picker("Background color", BG, key="bg_color")
+
+    st.divider()
+    st.markdown(
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:10px;'
+        f'letter-spacing:0.18em;text-transform:uppercase;color:{MUTED};'
         f'margin-bottom:8px;">Share this view</div>',
         unsafe_allow_html=True,
     )
@@ -584,7 +607,7 @@ _n_gray       = n_items - len(pill_items)
 components.html(
     f"""<script>
 (function(){{
-  var C={_colors_json}, BG="{BG}", N=C.length, R={_regions_json}, NGRAY={_n_gray}, GRAY="{OTHER_COLOR}";
+  var C={_colors_json}, BG="{_custom_bg}", N=C.length, R={_regions_json}, NGRAY={_n_gray}, GRAY="{OTHER_COLOR}";
   function go(){{
     try{{
       var gs=window.parent.document.querySelectorAll('[data-baseweb="button-group"]');
@@ -738,7 +761,7 @@ _title_col, _help_col = st.columns([9, 1])
 with _title_col:
     st.markdown(f"""
 <div class="title-block">
-    <div class="title">Ranked Placement Atlas</div>
+    <div class="title" style="font-family:{_title_font_css};font-style:{_title_font_style};">{_custom_title}</div>
     <div class="subtitle">{len(data['bin_names'])} {bin_term}s × {n_pos_total} ranked positions × {n_items} {item_term}s × {len(data['dates'])} snapshots. When multiple dates are selected, each cell shows the modal {item_term} across the range (ties broken by recency).</div>
 </div>
 """, unsafe_allow_html=True)
@@ -917,11 +940,11 @@ def effective_color(i):
         return OTHER_COLOR   # gray items never dim further
     if all_or_none or i in sel_idx_set:
         return item_colors[i]
-    return dim_color(item_colors[i], 0.88)
+    return dim_color(item_colors[i], 0.88, bg=_custom_bg)
 
 # Colorscale spans [-1, n_items]: slot 0 = no-data (background), slots 1..n_items = items.
 _n = n_items + 1
-colorscale = [[0.0, PANEL_BG], [1 / _n, PANEL_BG]]
+colorscale = [[0.0, _custom_bg], [1 / _n, _custom_bg]]
 for i in range(n_items):
     c = effective_color(i)
     colorscale.append([(i + 1) / _n, c])
@@ -1115,8 +1138,8 @@ fig.update_layout(
     width=total_width,
     height=total_height,
     margin=dict(l=130, r=20, t=10, b=40),
-    plot_bgcolor=PANEL_BG,
-    paper_bgcolor=PANEL_BG,
+    plot_bgcolor=_custom_bg,
+    paper_bgcolor=_custom_bg,
     showlegend=False,
     bargap=0.08,
     font=dict(family='IBM Plex Sans', size=11, color=INK),
@@ -1234,7 +1257,7 @@ if drill_bin != _no_sel:
             mini_fig.update_layout(
                 width=mini_w, height=mini_h,
                 margin=dict(l=50, r=20, t=10, b=60),
-                plot_bgcolor=PANEL_BG, paper_bgcolor=PANEL_BG,
+                plot_bgcolor=_custom_bg, paper_bgcolor=_custom_bg,
                 font=dict(family='IBM Plex Sans', size=11, color=INK),
                 hoverlabel=dict(
                     bgcolor=INK, bordercolor=INK,
