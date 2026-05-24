@@ -778,6 +778,15 @@ with col_items:
         selection_mode="multi",
         key="items_pills",
     )
+    _n_gray = n_items - len(pill_items)
+    if _n_gray > 0:
+        st.markdown(
+            f'<span style="display:inline-block;background:{OTHER_COLOR};color:#fff;'
+            f'font-family:IBM Plex Mono,monospace;font-size:11px;letter-spacing:0.02em;'
+            f'border-radius:99px;padding:2px 10px;margin:2px 0 4px;opacity:0.75;'
+            f'pointer-events:none;user-select:none;">other ({_n_gray})</span>',
+            unsafe_allow_html=True,
+        )
     ic1, ic2 = st.columns(2)
     with ic1:
         st.button("all",  key="btn_all",   on_click=_items_all)
