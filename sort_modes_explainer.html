@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sort Modes — Ranked Placement Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #F7F4ED;
+    --panel:   #FBFAF5;
+    --ink:     #1A1A1A;
+    --muted:   #6B6B6B;
+    --border:  #2A2A2A;
+    --red:     #B91C1C;
+    --blue:    #1E3A8A;
+    --green:   #15803D;
+    --cell:    32px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 48px 32px;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  /* ── Header ── */
+  .page-eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 36px;
+    line-height: 1.1;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+  }
+  .intro {
+    color: #4A4A4A;
+    max-width: 640px;
+    margin-bottom: 48px;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 48px;
+    padding: 14px 18px;
+    background: var(--panel);
+    border-left: 2px solid var(--border);
+  }
+  .legend-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-right: 12px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+  }
+  .swatch {
+    width: 13px; height: 13px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* ── Section ── */
+  .mode {
+    margin-bottom: 52px;
+  }
+  .mode-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .mode-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    min-width: 48px;
+  }
+  h2 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .mode-desc {
+    color: #3A3A3A;
+    margin-bottom: 18px;
+    max-width: 620px;
+    padding-left: 60px;
+  }
+  .use-when {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    padding-left: 60px;
+    margin-bottom: 20px;
+  }
+  .use-when strong {
+    color: var(--ink);
+  }
+
+  /* ── Heatmap ── */
+  .heatmap-wrap {
+    padding-left: 60px;
+    overflow-x: auto;
+  }
+  .heatmap {
+    display: inline-grid;
+    gap: 2px;
+    background: var(--bg);
+  }
+  .col-header {
+    display: contents;
+  }
+  .pos-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--cell);
+    height: 20px;
+  }
+  .row-label-cell {
+    display: flex;
+    align-items: center;
+    padding-right: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--ink);
+    white-space: nowrap;
+    height: var(--cell);
+  }
+  .row-label-cell .rank-tag {
+    font-size: 9px;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+  .cell {
+    width: var(--cell);
+    height: var(--cell);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #fff;
+    letter-spacing: 0;
+    border-radius: 1px;
+  }
+  .cell.highlighted {
+    outline: 2px solid var(--ink);
+    outline-offset: -2px;
+  }
+  .cell.dimmed {
+    opacity: 0.22;
+  }
+  .cell.empty {
+    background: var(--panel);
+    color: transparent;
+  }
+  .arrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    padding-left: 60px;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  hr.section-rule {
+    border: none;
+    border-top: 1px solid #D4CFC5;
+    margin: 0 0 48px;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-eyebrow">Ranked Placement Atlas · Reference</div>
+<h1>Sort modes</h1>
+<p class="intro">
+  Each sort mode reorders the <strong>rows</strong> of the heatmap. The example below uses five stores and five ranked positions.
+  Three item types appear: Red, Blue, and Green. Row order changes — the data inside each row never changes.
+</p>
+
+<!-- Legend -->
+<div class="legend">
+  <span class="legend-label">Items</span>
+  <span class="legend-item"><span class="swatch" style="background:var(--red)"></span>Red</span>
+  <span class="legend-item"><span class="swatch" style="background:var(--blue)"></span>Blue</span>
+  <span class="legend-item"><span class="swatch" style="background:var(--green)"></span>Green</span>
+</div>
+
+<!--
+  Example data (5 stores × 5 positions):
+  Store A  R R R B G   rank 3
+  Store B  R R G G B   rank 5
+  Store C  B B R G R   rank 2
+  Store D  G G G R B   rank 1
+  Store E  R B R B R   rank 4
+-->
+
+<!-- ── 1. Index ── -->
+<div class="mode">
+  <div class="mode-header">
+    <span class="mode-num">Mode 1</span>
+    <h2>Index</h2>
+  </div>
+  <p class="mode-desc">
+    Stores appear in the order they came in — no sorting applied.
+    This is your neutral starting point, useful as a baseline before
+    applying any analytical ordering.
+  </p>
+  <p class="use-when"><strong>Use when:</strong> you want to see the raw data order, or verify that a sort is actually doing something.</p>
+
+  <div class="heatmap-wrap">
+    <div class="heatmap" style="grid-template-columns: 120px repeat(5,var(--cell));">
+      <!-- header -->
+      <div></div>
+      <div class="pos-label">P1</div><div class="pos-label">P2</div><div class="pos-label">P3</div><div class="pos-label">P4</div><div class="pos-label">P5</div>
+      <!-- rows -->
+      <div class="row-label-cell">Store A <span class="rank-tag">#3</span></div>
+      <div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--green)">G</div>
+
+      <div class="row-label-cell">Store B <span class="rank-tag">#5</span></div>
+      <div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--blue)">B</div>
+
+      <div class="row-label-cell">Store C <span class="rank-tag">#2</span></div>
+      <div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--red)">R</div>
+
+      <div class="row-label-cell">Store D <span class="rank-tag">#1</span></div>
+      <div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div>
+
+      <div class="row-label-cell">Store E <span class="rank-tag">#4</span></div>
+      <div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div>
+    </div>
+  </div>
+</div>
+<hr class="section-rule">
+
+<!-- ── 2. Similarity ── -->
+<div class="mode">
+  <div class="mode-header">
+    <span class="mode-num">Mode 2</span>
+    <h2>Similarity <span style="font-size:12px;color:var(--muted);font-weight:400;">· default</span></h2>
+  </div>
+  <p class="mode-desc">
+    Stores whose first four positions share the same item pattern are
+    placed next to each other. This surfaces "archetypes" — clusters of
+    stores with a similar opening profile — as broad horizontal colour bands.
+    Positions 5 and beyond do not affect the grouping.
+  </p>
+  <p class="use-when"><strong>Use when:</strong> you want to discover which stores naturally belong to the same category, without knowing the categories in advance.</p>
+
+  <div class="heatmap-wrap">
+    <div class="heatmap" style="grid-template-columns: 120px repeat(5,var(--cell));">
+      <div></div>
+      <div class="pos-label">P1</div><div class="pos-label">P2</div><div class="pos-label">P3</div><div class="pos-label">P4</div><div class="pos-label">P5</div>
+
+      <!-- Red-opening group -->
+      <div class="row-label-cell">Store A <span class="rank-tag">#3</span></div>
+      <div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--green)">G</div>
+
+      <div class="row-label-cell">Store B <span class="rank-tag">#5</span></div>
+      <div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--blue)">B</div>
+
+      <div class="row-label-cell">Store E <span class="rank-tag">#4</span></div>
+      <div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div>
+
+      <!-- Blue-opening group -->
+      <div class="row-label-cell">Store C <span class="rank-tag">#2</span></div>
+      <div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--red)">R</div>
+
+      <!-- Green-opening group -->
+      <div class="row-label-cell">Store D <span class="rank-tag">#1</span></div>
+      <div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div>
+    </div>
+  </div>
+  <p class="arrow">↑ Red-opening stores cluster together; Blue-opening and Green-opening each form their own band.</p>
+</div>
+<hr class="section-rule">
+
+<!-- ── 3. Store Rank ── -->
+<div class="mode">
+  <div class="mode-header">
+    <span class="mode-num">Mode 3</span>
+    <h2>Store Rank</h2>
+  </div>
+  <p class="mode-desc">
+    Stores are ordered by their global rank — the best-ranked store
+    (rank 1) sits at the top. The item content of each row is
+    unchanged; only the vertical order reflects performance.
+  </p>
+  <p class="use-when"><strong>Use when:</strong> you want to see whether high-performing stores share a distinct item profile compared to lower-ranked ones.</p>
+
+  <div class="heatmap-wrap">
+    <div class="heatmap" style="grid-template-columns: 120px repeat(5,var(--cell));">
+      <div></div>
+      <div class="pos-label">P1</div><div class="pos-label">P2</div><div class="pos-label">P3</div><div class="pos-label">P4</div><div class="pos-label">P5</div>
+
+      <div class="row-label-cell">Store D <span class="rank-tag">#1</span></div>
+      <div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div>
+
+      <div class="row-label-cell">Store C <span class="rank-tag">#2</span></div>
+      <div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--red)">R</div>
+
+      <div class="row-label-cell">Store A <span class="rank-tag">#3</span></div>
+      <div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--green)">G</div>
+
+      <div class="row-label-cell">Store E <span class="rank-tag">#4</span></div>
+      <div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div>
+
+      <div class="row-label-cell">Store B <span class="rank-tag">#5</span></div>
+      <div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--blue)">B</div>
+    </div>
+  </div>
+  <p class="arrow">↑ Rank 1 at the top. The top two stores here both open with a different item — no clear shared profile in this example.</p>
+</div>
+<hr class="section-rule">
+
+<!-- ── 4. Top-rank ── -->
+<div class="mode">
+  <div class="mode-header">
+    <span class="mode-num">Mode 4</span>
+    <h2>Top-rank</h2>
+  </div>
+  <p class="mode-desc">
+    Stores are sorted strictly left-to-right: first by what item is at position 1,
+    then — among stores tied at position 1 — by position 2, then position 3, and so on.
+    The result is that the leftmost column is perfectly grouped; later columns
+    resolve ties progressively.
+  </p>
+  <p class="use-when"><strong>Use when:</strong> you want to find stores that have an identical item sequence from the very first position.</p>
+
+  <div class="heatmap-wrap">
+    <div class="heatmap" style="grid-template-columns: 120px repeat(5,var(--cell));">
+      <div></div>
+      <div class="pos-label">P1</div><div class="pos-label">P2</div><div class="pos-label">P3</div><div class="pos-label">P4</div><div class="pos-label">P5</div>
+
+      <!-- Red at P1, then sub-sort -->
+      <div class="row-label-cell">Store A <span class="rank-tag">#3</span></div>
+      <div class="cell highlighted" style="background:var(--red)">R</div><div class="cell highlighted" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--green)">G</div>
+
+      <div class="row-label-cell">Store B <span class="rank-tag">#5</span></div>
+      <div class="cell highlighted" style="background:var(--red)">R</div><div class="cell highlighted" style="background:var(--red)">R</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--blue)">B</div>
+
+      <div class="row-label-cell">Store E <span class="rank-tag">#4</span></div>
+      <div class="cell highlighted" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div>
+
+      <!-- Blue at P1 -->
+      <div class="row-label-cell">Store C <span class="rank-tag">#2</span></div>
+      <div class="cell highlighted" style="background:var(--blue)">B</div><div class="cell" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--red)">R</div>
+
+      <!-- Green at P1 -->
+      <div class="row-label-cell">Store D <span class="rank-tag">#1</span></div>
+      <div class="cell highlighted" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--blue)">B</div>
+    </div>
+  </div>
+  <p class="arrow">↑ P1 is fully grouped (all Red, then Blue, then Green). Within the Red group, P2 further separates A&amp;B (both Red at P2) from E (Blue at P2).</p>
+</div>
+<hr class="section-rule">
+
+<!-- ── 5. Selected Share ── -->
+<div class="mode">
+  <div class="mode-header">
+    <span class="mode-num">Mode 5</span>
+    <h2>Selected Share</h2>
+  </div>
+  <p class="mode-desc">
+    After highlighting one or more items using the item pills,
+    stores are ranked by how much of the <em>visible</em> positions
+    those items occupy. The store where your chosen items appear most
+    often rises to the top. Changing the position range filter
+    updates the ranking immediately.
+  </p>
+  <p class="use-when"><strong>Use when:</strong> you've selected a specific item (or a set) and want to quickly find the stores most dominated by it.</p>
+  <p style="padding-left:60px;margin-bottom:16px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);">
+    Example: <strong style="color:var(--ink);">Red</strong> is selected. Stores are ranked by how many of their 5 positions are Red.
+  </p>
+
+  <div class="heatmap-wrap">
+    <div class="heatmap" style="grid-template-columns: 120px repeat(5,var(--cell)) 80px;">
+      <div></div>
+      <div class="pos-label">P1</div><div class="pos-label">P2</div><div class="pos-label">P3</div><div class="pos-label">P4</div><div class="pos-label">P5</div>
+      <div class="pos-label" style="color:var(--red);font-weight:500;">Red share</div>
+
+      <!-- 3/5 red -->
+      <div class="row-label-cell">Store A <span class="rank-tag">#3</span></div>
+      <div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell dimmed" style="background:var(--blue)">B</div><div class="cell dimmed" style="background:var(--green)">G</div>
+      <div class="pos-label" style="color:var(--red);font-weight:500;">3 / 5</div>
+
+      <!-- 3/5 red -->
+      <div class="row-label-cell">Store E <span class="rank-tag">#4</span></div>
+      <div class="cell" style="background:var(--red)">R</div><div class="cell dimmed" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div><div class="cell dimmed" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div>
+      <div class="pos-label" style="color:var(--red);font-weight:500;">3 / 5</div>
+
+      <!-- 2/5 red -->
+      <div class="row-label-cell">Store B <span class="rank-tag">#5</span></div>
+      <div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell dimmed" style="background:var(--green)">G</div><div class="cell dimmed" style="background:var(--green)">G</div><div class="cell dimmed" style="background:var(--blue)">B</div>
+      <div class="pos-label" style="color:var(--red);font-weight:500;">2 / 5</div>
+
+      <!-- 2/5 red -->
+      <div class="row-label-cell">Store C <span class="rank-tag">#2</span></div>
+      <div class="cell dimmed" style="background:var(--blue)">B</div><div class="cell dimmed" style="background:var(--blue)">B</div><div class="cell" style="background:var(--red)">R</div><div class="cell dimmed" style="background:var(--green)">G</div><div class="cell" style="background:var(--red)">R</div>
+      <div class="pos-label" style="color:var(--red);font-weight:500;">2 / 5</div>
+
+      <!-- 1/5 red -->
+      <div class="row-label-cell">Store D <span class="rank-tag">#1</span></div>
+      <div class="cell dimmed" style="background:var(--green)">G</div><div class="cell dimmed" style="background:var(--green)">G</div><div class="cell dimmed" style="background:var(--green)">G</div><div class="cell" style="background:var(--red)">R</div><div class="cell dimmed" style="background:var(--blue)">B</div>
+      <div class="pos-label" style="color:var(--red);font-weight:500;">1 / 5</div>
+    </div>
+  </div>
+  <p class="arrow">↑ Store D is ranked #1 overall but sinks to the bottom here — it has the least Red. Store A and E tie at 3/5 and float to the top.</p>
+</div>
+
+<hr class="section-rule">
+<p style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);">
+  Ranked Placement Atlas &nbsp;·&nbsp; sort modes reference
+</p>
+
+</body>
+</html>

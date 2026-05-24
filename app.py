@@ -28,6 +28,8 @@ Data schema (synthetic):
 
 import io
 import json
+import re
+from pathlib import Path
 
 import streamlit as st
 import numpy as np
@@ -76,6 +78,8 @@ TITLE_FONTS = {
     "DM Serif Display": ("'DM Serif Display', Georgia, serif",  "normal"),
     "IBM Plex Sans":    ("'IBM Plex Sans', sans-serif",         "normal"),
 }
+
+SORT_GUIDE_URL = "https://labrou.github.io/bin-selector/sort_modes_explainer.html"
 
 def sort_descriptions(bt, it):
     """Return sort-mode description strings using the active bin/item terminology."""
@@ -740,6 +744,8 @@ order stays stable as you narrow the window.
 | **Top-rank** | Groups {bin_term}s that share the same {item_term} at position 1; ties resolved by position 2, then 3, and so on |
 | **Selected Share** | Ranks {bin_term}s by what share of the **visible** positions are held by the selected {item_term}s (available when 1 – N−1 items are highlighted) |
 
+[Visual guide to all sort modes →]({SORT_GUIDE_URL})
+
 ---
 
 ### Cell size & Export
@@ -791,6 +797,20 @@ are resolved by majority vote (random tiebreak).
 Up to **11** {item_term}s can receive distinct colours; the rest render in gray
 but still show their real label on hover and in cell text.
 """)
+
+# ── Sort guide dialog ─────────────────────────────────────────────────────────
+@st.dialog("Sort modes — visual guide", width="large")
+def _show_sort_guide():
+    try:
+        html = Path(__file__).with_name("sort_modes_explainer.html").read_text(encoding="utf-8")
+        style_m = re.search(r'<style>(.*?)</style>', html, re.DOTALL)
+        body_m  = re.search(r'<body>(.*?)</body>',  html, re.DOTALL)
+        if style_m and body_m:
+            st.html(f"<style>{style_m.group(1)}</style>{body_m.group(1)}")
+        else:
+            st.html(html)
+    except FileNotFoundError:
+        st.markdown(f"[Open visual guide in browser →]({SORT_GUIDE_URL})")
 
 # ── Title ─────────────────────────────────────────────────────────────────────
 _title_col, _help_col = st.columns([9, 1])
@@ -904,14 +924,21 @@ if 0 < n_sel < n_pill_items:
 if st.session_state.get('sort_radio') not in sort_options:
     st.session_state['sort_radio'] = 'Similarity'
 
-sort_mode = st.radio(
-    f"Sort {bin_term}s by",
-    sort_options,
-    index=sort_options.index(st.session_state.get('sort_radio', 'Similarity')),
-    horizontal=True,
-    key="sort_radio",
-)
-st.caption(sort_descriptions(bin_term, item_term).get(sort_mode, ""))
+_sort_col, _sort_help_col = st.columns([12, 1])
+with _sort_col:
+    sort_mode = st.radio(
+        f"Sort {bin_term}s by",
+        sort_options,
+        index=sort_options.index(st.session_state.get('sort_radio', 'Similarity')),
+        horizontal=True,
+        key="sort_radio",
+    )
+    st.caption(sort_descriptions(bin_term, item_term).get(sort_mode, ""))
+with _sort_help_col:
+    st.write("")
+    st.write("")
+    if st.button("?", key="sort_guide_btn"):
+        _show_sort_guide()
 
 # ── Filtering ─────────────────────────────────────────────────────────────────
 regions_active = selected_regions if selected_regions else available_regions

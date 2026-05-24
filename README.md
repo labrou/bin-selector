@@ -260,6 +260,8 @@ The sidebar (arrow at top-left) contains four sections:
 
 All sort modes order the **rows** of the heatmap. Ties fall back to stable bin-index order.
 
+**Visual guide with worked examples:** [sort_modes_explainer.html](https://labrou.github.io/bin-selector/sort_modes_explainer.html)
+
 ### Index
 
 Bins in their original data order — the unsorted baseline.
