@@ -225,12 +225,11 @@ def load_user_data(file_bytes: bytes, filename: str):
     pos_idx_map  = {p: i for i, p in enumerate(positions)}
 
     items_array = np.full((n_bins, n_weeks, n_pos), -1, dtype=np.int16)  # -1 = no data
-    for row in df.itertuples(index=False):
-        items_array[
-            bin_idx_map[row.bin_key],
-            date_idx_map[row.date],
-            pos_idx_map[row.position],
-        ] = item_to_idx.get(str(row.item), -1)
+    _bi = df['bin_key'].map(bin_idx_map).astype(np.intp).values
+    _di = df['date'].map(date_idx_map).astype(np.intp).values
+    _pi = df['position'].map(pos_idx_map).astype(np.intp).values
+    _ii = df['item'].map(item_to_idx).fillna(-1).astype(np.int16).values
+    items_array[_bi, _di, _pi] = _ii
 
     bin_meta = (
         df.drop_duplicates('bin_key')
@@ -347,18 +346,17 @@ def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, regions,
                   item_codes=None, bin_term='bin'):
     if item_codes is None:
         item_codes = ITEMS
-    rows = []
-    for j, bname in enumerate(bin_names):
-        for i, pos in enumerate(positions):
-            rows.append({
-                bin_term:         bname,
-                'rank':           int(ranks[j]),
-                'segment':        regions[j],
-                'position':       int(pos),
-                'item':           item_codes[int(items_grid[j, i])] if items_grid[j, i] >= 0 else '',
-                'majority_share': round(float(share_grid[j, i]), 4),
-            })
-    return pd.DataFrame(rows).to_csv(index=False).encode()
+    n_bins, n_pos = items_grid.shape
+    codes = np.array(item_codes)
+    flat  = items_grid.ravel().astype(int)
+    return pd.DataFrame({
+        bin_term:         np.repeat(bin_names, n_pos),
+        'rank':           np.repeat(ranks, n_pos).astype(int),
+        'segment':        np.repeat(regions, n_pos),
+        'position':       np.tile(positions.astype(int), n_bins),
+        'item':           np.where(flat >= 0, codes[np.clip(flat, 0, len(codes) - 1)], ''),
+        'majority_share': np.round(share_grid.ravel().astype(float), 4),
+    }).to_csv(index=False).encode()
 
 
 # ============ APP ============
@@ -981,12 +979,10 @@ if sort_mode == "Index":
 elif sort_mode == f"{bin_term.capitalize()} Rank":
     order = np.argsort(data['bin_ranks'][visible_bin_indices], kind='stable')
 elif sort_mode == "Similarity":
-    top4  = majority_sort[:, :4]
-    keys  = [''.join(f'{int(x):x}' for x in row) for row in top4]
-    order = np.argsort(keys, kind='stable')
+    top4  = majority_sort[:, :4].astype(np.int32)
+    order = np.lexsort(top4.T[::-1])   # primary key = col 0, secondary = col 1, …
 elif sort_mode == "Top-rank":
-    keys  = [''.join(f'{int(x):x}' for x in row) for row in majority_sort]
-    order = np.argsort(keys, kind='stable')
+    order = np.lexsort(majority_sort.astype(np.int32).T[::-1])
 elif sort_mode == "Selected Share":
     sel_idx_set = [item_codes.index(i) for i in selected_items]
     share_count = np.isin(majority_f, sel_idx_set).sum(axis=1)
@@ -1007,18 +1003,19 @@ all_or_none = (len(sel_idx_set) == 0) or (len(sel_idx_set) >= n_pill_items)
 
 def effective_color(i):
     if item_colors[i] == OTHER_COLOR:
-        return OTHER_COLOR   # gray items never dim further
+        return OTHER_COLOR
     if all_or_none or i in sel_idx_set:
         return item_colors[i]
     return dim_color(item_colors[i], 0.88, bg=_custom_bg)
+
+_eff_colors = [effective_color(i) for i in range(n_items)]
 
 # Colorscale spans [-1, n_items]: slot 0 = no-data (background), slots 1..n_items = items.
 _n = n_items + 1
 colorscale = [[0.0, _custom_bg], [1 / _n, _custom_bg]]
 for i in range(n_items):
-    c = effective_color(i)
-    colorscale.append([(i + 1) / _n, c])
-    colorscale.append([(i + 2) / _n, c])
+    colorscale.append([(i + 1) / _n, _eff_colors[i]])
+    colorscale.append([(i + 2) / _n, _eff_colors[i]])
 
 # ── Sizing (widgets rendered below view summary; read from session state here) ─
 cell_size = st.session_state.get('cell_sz', 12)
@@ -1065,10 +1062,11 @@ text_grid = np.where(
 z         = majority_disp.astype(float)
 
 # ── Legend ────────────────────────────────────────────────────────────────────
+_item_code_idx = {code: i for i, code in enumerate(item_codes)}
 legend_parts = []
 for item in pill_items:
-    idx  = item_codes.index(item)
-    c    = effective_color(idx)
+    idx  = _item_code_idx[item]
+    c    = _eff_colors[idx]
     dim  = not (all_or_none or idx in sel_idx_set)
     text_color = MUTED if dim else INK
     legend_parts.append(
@@ -1190,7 +1188,7 @@ for item_idx in range(n_items):
             x=positions_disp,
             y=pos_dist[:, item_idx] / max(n_show_bins, 1),
             orientation='v',
-            marker=dict(color=effective_color(item_idx), line=dict(width=0)),
+            marker=dict(color=_eff_colors[item_idx], line=dict(width=0)),
             name=item_codes[item_idx],
             showlegend=False,
             hovertemplate=f"<b>{item_codes[item_idx]}</b>: %{{y:.0%}} at pos %{{x}}<extra></extra>",
@@ -1249,12 +1247,24 @@ chart_event = st.plotly_chart(
     key="main_chart",
 )
 
-# ── HTML export — pure Python, no subprocess, works everywhere ─────────────────
+# ── HTML export — cached in session state; only reserialised when view changes ──
+_html_view_key = (
+    tuple(ordered_bin_indices.tolist()),
+    date_start_idx, date_end_idx,
+    tuple(pos_indices),
+    sort_mode,
+    tuple(sorted(sel_idx_set)),
+    _custom_bg,
+)
+if st.session_state.get('_html_view_key') != _html_view_key:
+    st.session_state['_html_view_key'] = _html_view_key
+    st.session_state['_html_bytes'] = fig.to_html(
+        include_plotlyjs='cdn', config={'displayModeBar': True}
+    ).encode()
 with _dl_html_col:
-    _html = fig.to_html(include_plotlyjs='cdn', config={'displayModeBar': True})
     st.download_button(
         "Download HTML",
-        _html.encode(),
+        st.session_state['_html_bytes'],
         file_name="atlas_view.html",
         mime="text/html",
         width='stretch',
@@ -1346,15 +1356,17 @@ if drill_bin != _no_sel:
             st.plotly_chart(mini_fig, width='content')
 
             # CSV for this bin's time series
-            drill_rows = []
-            for wi, d in enumerate(drill_dates):
-                for pi, pos in enumerate(positions_disp):
-                    drill_rows.append({
-                        bin_term: drill_bin, 'rank': int(bin_rank_v), 'segment': bin_region,
-                        'date': d.isoformat(), 'position': int(pos),
-                        'item': item_codes[int(drill_items[wi, pi])] if drill_items[wi, pi] >= 0 else '',
-                    })
-            drill_csv = pd.DataFrame(drill_rows).to_csv(index=False).encode()
+            _n_di, _n_dp = drill_items.shape
+            _d_flat = drill_items.ravel().astype(int)
+            _codes  = np.array(item_codes)
+            drill_csv = pd.DataFrame({
+                bin_term:   drill_bin,
+                'rank':     int(bin_rank_v),
+                'segment':  bin_region,
+                'date':     np.repeat([d.isoformat() for d in drill_dates], _n_dp),
+                'position': np.tile(positions_disp.astype(int), _n_di),
+                'item':     np.where(_d_flat >= 0, _codes[np.clip(_d_flat, 0, n_items - 1)], ''),
+            }).to_csv(index=False).encode()
             st.download_button(
                 f"Download {drill_bin} time series CSV",
                 drill_csv,
