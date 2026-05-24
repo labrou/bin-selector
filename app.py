@@ -580,25 +580,44 @@ if st.session_state.get('_region_sig') != _region_sig:
 _pill_colors  = [item_colors[item_codes.index(it)] for it in pill_items]
 _colors_json  = json.dumps(_pill_colors)
 _regions_json = json.dumps(available_regions)
+_n_gray       = n_items - len(pill_items)
 components.html(
     f"""<script>
 (function(){{
-  var C={_colors_json}, BG="{BG}", N=C.length, R={_regions_json};
+  var C={_colors_json}, BG="{BG}", N=C.length, R={_regions_json}, NGRAY={_n_gray}, GRAY="{OTHER_COLOR}";
   function go(){{
     try{{
       var gs=window.parent.document.querySelectorAll('[data-baseweb="button-group"]');
       for(var i=0;i<gs.length;i++){{
         var bs=gs[i].querySelectorAll('button');
-        if(bs.length!==N) continue;
+        // Exclude any previously-injected gray pills from the count
+        var realBs=Array.from(bs).filter(function(b){{return !b.getAttribute('data-gray-pill');}});
+        if(realBs.length!==N) continue;
         // Skip the regions group (contains known region labels)
-        var texts=Array.from(bs).map(function(b){{return b.textContent.trim();}});
+        var texts=realBs.map(function(b){{return b.textContent.trim();}});
         if(R.some(function(r){{return texts.indexOf(r)>=0;}})) continue;
-        for(var j=0;j<bs.length;j++){{
-          var b=bs[j];
+        // Color the real pills
+        for(var j=0;j<realBs.length;j++){{
+          var b=realBs[j];
           var sel=b.getAttribute('aria-pressed')==='true'||b.getAttribute('aria-checked')==='true';
           b.style.setProperty('color', sel ? BG : C[j], 'important');
           b.style.setProperty('border-color', C[j], 'important');
           b.style.setProperty('background-color', sel ? C[j] : '', 'important');
+        }}
+        // Append gray pill indicator if needed and not already present
+        if(NGRAY>0 && !gs[i].querySelector('[data-gray-pill]')){{
+          var fake=realBs[0].cloneNode(true);
+          fake.setAttribute('data-gray-pill','1');
+          fake.textContent='other ('+NGRAY+')';
+          fake.removeAttribute('aria-pressed');
+          fake.removeAttribute('aria-checked');
+          fake.style.setProperty('background-color', GRAY, 'important');
+          fake.style.setProperty('color', '#ffffff', 'important');
+          fake.style.setProperty('border-color', GRAY, 'important');
+          fake.style.setProperty('opacity', '0.7', 'important');
+          fake.style.setProperty('cursor', 'default', 'important');
+          fake.onclick=function(e){{e.preventDefault();e.stopPropagation();return false;}};
+          gs[i].appendChild(fake);
         }}
       }}
     }}catch(e){{}}
@@ -778,15 +797,6 @@ with col_items:
         selection_mode="multi",
         key="items_pills",
     )
-    _n_gray = n_items - len(pill_items)
-    if _n_gray > 0:
-        st.markdown(
-            f'<span style="display:inline-block;background:{OTHER_COLOR};color:#fff;'
-            f'font-family:IBM Plex Mono,monospace;font-size:11px;letter-spacing:0.02em;'
-            f'border-radius:99px;padding:2px 10px;margin:2px 0 4px;opacity:0.75;'
-            f'pointer-events:none;user-select:none;">other ({_n_gray})</span>',
-            unsafe_allow_html=True,
-        )
     ic1, ic2 = st.columns(2)
     with ic1:
         st.button("all",  key="btn_all",   on_click=_items_all)
