@@ -20,7 +20,7 @@ Data schema (synthetic):
     100 bins × 52 snapshots × 50 ranked positions × 10 items (3-char codes).
     Each bin carries:
         - bin_rank: global rank 1-100 (ties allowed)
-        - region:   one of NA, SA, EU, AS, CN, AU (constant per bin)
+        - segment:  one of NA, SA, EU, AS, CN, AU (constant per bin)
     Drift model:
         - Slow archetype drift across weeks
         - 20% of bins undergo a one-time regime change between weeks 15-37
@@ -48,7 +48,7 @@ ITEMS = ['APX', 'BRT', 'CFD', 'DLT', 'ETR', 'FRM', 'GVS', 'HXC', 'INV', 'JTL']
 COLORS = ['#B91C1C', '#1E3A8A', '#15803D', '#CA8A04', '#6D28D9',
           '#DB2777', '#0E7490', '#525252', '#92400E', '#4D7C0F',
           '#C2410C', '#0369A1']  # two extra slots for uploaded data
-REGIONS = ['NA', 'SA', 'EU', 'AS', 'CN', 'AU']
+SEGMENTS = ['NA', 'SA', 'EU', 'AS', 'CN', 'AU']
 BIN_NAMES = [
     'Apex',  'Basin', 'Birch', 'Bloom', 'Bluff', 'Brace', 'Briar', 'Brook',
     'Brume', 'Cable', 'Cairn', 'Canal', 'Cape',  'Cedar', 'Chalk', 'Cirque',
@@ -114,7 +114,7 @@ def generate_data():
     pos_biases = np.array([positional_bias(p) for p in range(NUM_POSITIONS)])  # (50, 10)
 
     bin_archetypes  = rng.integers(0, 5, NUM_BINS)
-    bin_regions     = np.array(rng.choice(REGIONS, NUM_BINS))
+    bin_segments     = np.array(rng.choice(SEGMENTS, NUM_BINS))
     archetype_rank_center = np.array([15, 35, 50, 70, 50])
     rank_noise      = (rng.random(NUM_BINS) + rng.random(NUM_BINS) + rng.random(NUM_BINS) - 1.5) * 18
     _raw_scores     = archetype_rank_center[bin_archetypes] + rank_noise
@@ -150,7 +150,7 @@ def generate_data():
     return {
         'items':       items_array,
         'bin_ranks':   bin_ranks,
-        'bin_regions': bin_regions,
+        'bin_segments': bin_segments,
         'bin_names':   np.array(BIN_NAMES),
         'dates':       dates,
         'item_codes':  list(ITEMS),
@@ -240,7 +240,7 @@ def load_user_data(file_bytes: bytes, filename: str):
     return {
         'items':       items_array,
         'bin_ranks':   bin_meta['bin_rank'].to_numpy().astype(int),
-        'bin_regions': bin_meta['segment'].to_numpy().astype(str),
+        'bin_segments': bin_meta['segment'].to_numpy().astype(str),
         'bin_names':   np.array(bin_keys),
         'dates':       list(dates),
         'item_codes':  user_items,   # all items, frequency-ordered; no colours here
@@ -297,10 +297,10 @@ def apply_url_params(dates, item_codes=None):
     if not p:
         return
 
-    if 'regions' in p and 'regions_pills' not in st.session_state:
-        val = [r for r in p['regions'].split(',') if r]
+    if 'segments' in p and 'segments_pills' not in st.session_state:
+        val = [r for r in p['segments'].split(',') if r]
         if val:
-            st.session_state['regions_pills'] = val
+            st.session_state['segments_pills'] = val
 
     if 'items' in p and 'items_pills' not in st.session_state:
         st.session_state['items_pills'] = [i for i in p['items'].split(',') if i in pill_items]
@@ -342,7 +342,7 @@ def apply_url_params(dates, item_codes=None):
         st.session_state['auto_fit_cb'] = (p['af'] == '1')
 
 
-def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, regions,
+def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, segments,
                   item_codes=None, bin_term='bin'):
     if item_codes is None:
         item_codes = ITEMS
@@ -352,7 +352,7 @@ def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, regions,
     return pd.DataFrame({
         bin_term:         np.repeat(bin_names, n_pos),
         'rank':           np.repeat(ranks, n_pos).astype(int),
-        'segment':        np.repeat(regions, n_pos),
+        'segment':        np.repeat(segments, n_pos),
         'position':       np.tile(positions.astype(int), n_bins),
         'item':           np.where(flat >= 0, codes[np.clip(flat, 0, len(codes) - 1)], ''),
         'majority_share': np.round(share_grid.ravel().astype(float), 4),
@@ -552,7 +552,7 @@ with st.sidebar:
     )
     bin_term    = st.text_input("Bins are called",    "bin",    key="bin_term").strip()    or "bin"
     item_term   = st.text_input("Items are called",   "item",   key="item_term").strip()   or "item"
-    region_term = st.text_input(f"{bin_term.capitalize()} grouping attribute", "segment", key="region_term").strip() or "segment"
+    segment_term = st.text_input(f"{bin_term.capitalize()} grouping attribute", "segment", key="segment_term").strip() or "segment"
 
     st.divider()
     st.markdown(
@@ -620,24 +620,24 @@ if st.session_state.get('_item_sig') != _item_sig:
     st.session_state.pop('items_pills', None)
     st.session_state['_item_sig'] = _item_sig
 
-available_regions = sorted(np.unique(data['bin_regions']).tolist())
+available_segments = sorted(np.unique(data['bin_segments']).tolist())
 
-# Reset regions_pills when the region vocabulary changes (e.g., new CSV uploaded)
-_region_sig = ','.join(available_regions)
-if st.session_state.get('_region_sig') != _region_sig:
-    st.session_state.pop('regions_pills', None)
-    st.session_state['_region_sig'] = _region_sig
+# Reset segments_pills when the segment vocabulary changes (e.g., new CSV uploaded)
+_segment_sig = ','.join(available_segments)
+if st.session_state.get('_segment_sig') != _segment_sig:
+    st.session_state.pop('segments_pills', None)
+    st.session_state['_segment_sig'] = _segment_sig
 
 # Per-item pill colors via JS — only pill_items get distinct colours.
-# Discriminator: skip button groups that contain a region label.
+# Discriminator: skip button groups that contain a segment label.
 _pill_colors  = [item_colors[item_codes.index(it)] for it in pill_items]
 _colors_json  = json.dumps(_pill_colors)
-_regions_json = json.dumps(available_regions)
+_segments_json = json.dumps(available_segments)
 _n_gray       = n_items - len(pill_items)
 st.html(
     f"""<script>
 (function(){{
-  var C={_colors_json}, BG="{_custom_bg}", N=C.length, R={_regions_json}, NGRAY={_n_gray}, GRAY="{OTHER_COLOR}";
+  var C={_colors_json}, BG="{_custom_bg}", N=C.length, R={_segments_json}, NGRAY={_n_gray}, GRAY="{OTHER_COLOR}";
   function go(){{
     try{{
       var gs=document.querySelectorAll('[data-baseweb="button-group"]');
@@ -646,7 +646,7 @@ st.html(
         // Exclude any previously-injected gray pills from the count
         var realBs=Array.from(bs).filter(function(b){{return !b.getAttribute('data-gray-pill');}});
         if(realBs.length!==N) continue;
-        // Skip the regions group (contains known region labels)
+        // Skip the segments group (contains known segment labels)
         var texts=realBs.map(function(b){{return b.textContent.trim();}});
         if(R.some(function(r){{return texts.indexOf(r)>=0;}})) continue;
         // Color the real pills
@@ -709,7 +709,7 @@ Hover any cell for exact values.
 
 ### Filters — Row 1
 
-**{region_term.capitalize()}s** · Toggleable pills. Selecting a subset hides {bin_term}s whose {region_term} is not selected.
+**{segment_term.capitalize()}s** · Toggleable pills. Selecting a subset hides {bin_term}s whose {segment_term} is not selected.
 Use **all** / **none** to select or clear in one click.
 
 **{item_term.capitalize()}s** · Toggleable pills. Selection controls *highlighting*, not filtering —
@@ -833,27 +833,27 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-col_regions, col_items = st.columns(2)
+col_segments, col_items = st.columns(2)
 
-with col_regions:
-    if 'regions_pills' in st.session_state:
-        stored = st.session_state['regions_pills']
-        valid = [r for r in stored if r in available_regions]
+with col_segments:
+    if 'segments_pills' in st.session_state:
+        stored = st.session_state['segments_pills']
+        valid = [r for r in stored if r in available_segments]
         if stored and not valid:
-            del st.session_state['regions_pills']  # dataset changed, reset
+            del st.session_state['segments_pills']  # dataset changed, reset
         else:
-            st.session_state['regions_pills'] = valid  # preserve empty (None clicked)
+            st.session_state['segments_pills'] = valid  # preserve empty (None clicked)
 
-    _all_reg  = list(available_regions)
-    def _reg_all():  st.session_state['regions_pills'] = _all_reg
-    def _reg_none(): st.session_state['regions_pills'] = []
+    _all_reg  = list(available_segments)
+    def _reg_all():  st.session_state['segments_pills'] = _all_reg
+    def _reg_none(): st.session_state['segments_pills'] = []
 
-    selected_regions = st.pills(
-        f"{region_term.capitalize()}s",
-        available_regions,
+    selected_segments = st.pills(
+        f"{segment_term.capitalize()}s",
+        available_segments,
         selection_mode="multi",
-        default=available_regions,
-        key="regions_pills",
+        default=available_segments,
+        key="segments_pills",
     )
     rc1, rc2 = st.columns(2)
     with rc1:
@@ -946,11 +946,11 @@ sort_mode = st.radio(
 st.caption(sort_descriptions(bin_term, item_term).get(sort_mode, ""))
 
 # ── Filtering ─────────────────────────────────────────────────────────────────
-regions_active = selected_regions if selected_regions else available_regions
+segments_active = selected_segments if selected_segments else available_segments
 
-in_region = np.isin(data['bin_regions'], regions_active)
+in_segment = np.isin(data['bin_segments'], segments_active)
 in_rank   = (data['bin_ranks'] >= rank_range[0]) & (data['bin_ranks'] <= rank_range[1])
-visible_mask        = in_region & in_rank
+visible_mask        = in_segment & in_rank
 visible_bin_indices = np.where(visible_mask)[0]
 
 date_start_idx = data['dates'].index(date_range[0])
@@ -1043,13 +1043,13 @@ total_height   = int(heatmap_height / 0.83) + 60
 # ── Display arrays ────────────────────────────────────────────────────────────
 positions_disp = np.array(pos_indices) + 1
 ranks_disp     = data['bin_ranks'][ordered_bin_indices]
-regions_disp   = data['bin_regions'][ordered_bin_indices]
+segments_disp   = data['bin_segments'][ordered_bin_indices]
 bin_names_disp = data['bin_names'][ordered_bin_indices]
 
 customdata = np.empty((n_show_bins, n_show_pos, 5), dtype=object)
 customdata[:, :, 0] = bin_names_disp[:, None]
 customdata[:, :, 1] = ranks_disp[:, None].astype(int)
-customdata[:, :, 2] = regions_disp[:, None]
+customdata[:, :, 2] = segments_disp[:, None]
 customdata[:, :, 3] = positions_disp[None, :].astype(int)
 customdata[:, :, 4] = share_disp.astype(float)
 
@@ -1121,7 +1121,7 @@ summary_html = f"""
     <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
     <b>{n_show_pos}</b> position{'s' if n_show_pos != 1 else ''} ·
     {_date_label} ·
-    {region_term}s: <b>{', '.join(sorted(set(regions_active)))}</b> ·
+    {segment_term}s: <b>{', '.join(sorted(set(segments_active)))}</b> ·
     sort: <b>{sort_mode}</b>
     <div style="margin-top:5px;color:#4A4A4A;">{mode_sentence}</div>
 </div>
@@ -1138,7 +1138,7 @@ with _af_col:
 
 csv_bytes = make_view_csv(
     bin_names_disp, positions_disp, majority_disp, share_disp,
-    ranks_disp, regions_disp, item_codes=item_codes, bin_term=bin_term,
+    ranks_disp, segments_disp, item_codes=item_codes, bin_term=bin_term,
 )
 with _dl_csv_col:
     st.download_button(
@@ -1298,14 +1298,14 @@ if drill_bin != _no_sel:
     if len(bin_matches) > 0:
         bidx        = bin_matches[0]
         bin_rank_v  = data['bin_ranks'][bidx]
-        bin_region  = data['bin_regions'][bidx]
+        bin_segment  = data['bin_segments'][bidx]
         bin_weekly  = data['items'][bidx]               # (n_weeks, n_pos_total)
         drill_items = bin_weekly[date_indices][:, pos_indices]  # (n_dates, n_pos)
         drill_dates = data['dates'][date_start_idx:date_end_idx + 1]
 
-        _region_suffix = f" · {bin_region}" if ' · ' not in drill_bin else ""
+        _segment_suffix = f" · {bin_segment}" if ' · ' not in drill_bin else ""
         with st.expander(
-            f"Time series · {drill_bin} · Rank {bin_rank_v}{_region_suffix}",
+            f"Time series · {drill_bin} · Rank {bin_rank_v}{_segment_suffix}",
             expanded=True,
         ):
             mini_z    = drill_items.T.astype(float)           # (n_pos, n_dates)
@@ -1362,7 +1362,7 @@ if drill_bin != _no_sel:
             drill_csv = pd.DataFrame({
                 bin_term:   drill_bin,
                 'rank':     int(bin_rank_v),
-                'segment':  bin_region,
+                'segment':  bin_segment,
                 'date':     np.repeat([d.isoformat() for d in drill_dates], _n_dp),
                 'position': np.tile(positions_disp.astype(int), _n_di),
                 'item':     np.where(_d_flat >= 0, _codes[np.clip(_d_flat, 0, n_items - 1)], ''),
@@ -1378,7 +1378,7 @@ if drill_bin != _no_sel:
 # Only write when something actually changed — unconditional writes trigger a
 # rerun loop in some Streamlit versions, causing infinite local loading.
 _new_params = {
-    'regions': ','.join(sorted(set(regions_active))),
+    'segments': ','.join(sorted(set(segments_active))),
     'items':   ','.join(selected_items) if selected_items else '',
     'ds':      date_range[0].isoformat(),
     'de':      date_range[1].isoformat(),
