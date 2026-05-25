@@ -404,14 +404,15 @@
   </div>
   <p class="mode-desc">
     After highlighting one or more items using the item pills,
-    bins are ranked by how much of the <em>visible</em> positions
+    bins are ranked by how many of the <em>visible</em> positions
     those items occupy. The bin where your chosen items appear most
-    often rises to the top. Changing the position range filter
-    updates the ranking immediately.
+    often rises to the top. When two bins tie on count, the one where
+    the selected items sit at <strong>earlier, more prominent positions</strong>
+    ranks higher. Changing the position range filter updates the ranking immediately.
   </p>
-  <p class="use-when"><strong>Use when:</strong> you've selected a specific item (or a set) and want to quickly find the bins most dominated by it.</p>
+  <p class="use-when"><strong>Use when:</strong> you've selected a specific item (or a set) and want to quickly find the bins most dominated by it — and, among equals, where it appears most prominently.</p>
   <p style="padding-left:60px;margin-bottom:16px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);">
-    Example: <strong style="color:var(--ink);">Red</strong> is selected. Bins are ranked by how many of their 5 positions are Red.
+    Example: <strong style="color:var(--ink);">Red</strong> is selected. Bins are ranked by how many of their 5 positions are Red; ties go to the bin with Red at earlier positions.
   </p>
 
   <div class="heatmap-wrap">
@@ -446,7 +447,7 @@
       <div class="pos-label" style="color:var(--red);font-weight:500;">1 / 5</div>
     </div>
   </div>
-  <p class="arrow">↑ Bin D is ranked #1 overall but sinks to the bottom here — it has the least Red. Bin A and E tie at 3/5 and float to the top.</p>
+  <p class="arrow">↑ Bin D is ranked #1 overall but sinks to the bottom here — it has the least Red. Bin A and E both have 3/5 Red, but Bin A's Red falls at P1–P3 (position sum 6) versus Bin E's P1, P3, P5 (sum 9), so Bin A ranks first. Same logic separates Bin B (Red at P1–P2, sum 3) from Bin C (Red at P3, P5, sum 8).</p>
 </div>
 
 <hr class="section-rule">

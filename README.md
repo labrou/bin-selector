@@ -287,9 +287,10 @@ bins with an identical opening sequence.
 ### Selected Share
 
 Available when 1 to N−1 distinctly-coloured items are selected. Ranks bins
-by what share of the **visible** positions are held by the selected items —
-bins where your chosen items dominate rise to the top. Responds to the
-position range filter.
+by how many of the **visible** positions are held by the selected items —
+bins where your chosen items dominate rise to the top. Ties are broken by
+which bin has the selected items at earlier (more prominent) positions.
+Responds to the position range filter.
 
 ---
 

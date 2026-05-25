@@ -747,7 +747,7 @@ order stays stable as you narrow the window.
 | **Similarity** | Groups {bin_term}s that share the same {item_term}s at positions 1–4 (default) |
 | **{bin_term.capitalize()} Rank** | Ascending by global rank — top-ranked {bin_term}s at top |
 | **Top-rank** | Groups {bin_term}s that share the same {item_term} at position 1; ties resolved by position 2, then 3, and so on |
-| **Selected Share** | Ranks {bin_term}s by what share of the **visible** positions are held by the selected {item_term}s (available when 1 – N−1 items are highlighted) |
+| **Selected Share** | Ranks {bin_term}s by how many visible positions are held by selected {item_term}s; ties broken by which {bin_term} has them at earlier positions (available when 1 – N−1 items are highlighted) |
 
 [Visual guide to all sort modes →]({SORT_GUIDE_URL})
 
