@@ -268,9 +268,11 @@ def compute_majority(items_subset, n_items=10):
         result = items_subset[:, 0, :].astype(np.int16)
         return result, (result >= 0).astype(float)
 
+    # Count per (bin, pos, item) without looping over n_items.
+    # np.add.at visits each valid entry once — O(n_valid), not O(n_items × array_size).
     counts = np.zeros((n_bins, n_positions, n_items), dtype=np.int32)
-    for i in range(n_items):
-        counts[:, :, i] = (items_subset == i).sum(axis=1)
+    _b, _w, _p = np.where(items_subset >= 0)
+    np.add.at(counts, (_b, _p, items_subset[_b, _w, _p].astype(np.intp)), 1)
 
     max_counts = counts.max(axis=2)
     majority   = counts.argmax(axis=2).astype(np.int16)
@@ -970,7 +972,7 @@ if len(visible_bin_indices) == 0 or len(date_indices) == 0 or len(pos_indices) =
     st.stop()
 
 # ── Majority computation ───────────────────────────────────────────────────────
-items_sub = data['items'][visible_bin_indices][:, date_indices, :]
+items_sub = data['items'][visible_bin_indices, date_start_idx:date_end_idx + 1, :]
 majority, share = compute_majority(items_sub, n_items)   # (n_vis, n_pos_total)
 
 majority_f = majority[:, pos_indices]
@@ -1054,12 +1056,12 @@ ranks_disp     = data['bin_ranks'][ordered_bin_indices]
 segments_disp   = data['bin_segments'][ordered_bin_indices]
 bin_names_disp = data['bin_names'][ordered_bin_indices]
 
-customdata = np.empty((n_show_bins, n_show_pos, 5), dtype=object)
-customdata[:, :, 0] = bin_names_disp[:, None]
-customdata[:, :, 1] = ranks_disp[:, None].astype(int)
-customdata[:, :, 2] = segments_disp[:, None]
-customdata[:, :, 3] = positions_disp[None, :].astype(int)
-customdata[:, :, 4] = share_disp.astype(float)
+# bin_name → %{y}, position → %{x} in hovertemplate; no need to repeat per cell.
+# 3-column customdata: rank (per-row), segment (per-row), share (per-cell).
+customdata = np.empty((n_show_bins, n_show_pos, 3), dtype=object)
+customdata[:, :, 0] = ranks_disp[:, None].astype(int)
+customdata[:, :, 1] = segments_disp[:, None]
+customdata[:, :, 2] = share_disp.astype(float)
 
 _codes    = np.array(item_codes)
 text_grid = np.where(
@@ -1177,9 +1179,9 @@ fig.add_trace(
         customdata=customdata,
         text=text_grid,
         hovertemplate=(
-            "<b>%{customdata[0]}</b>  ·  Rank %{customdata[1]}  ·  %{customdata[2]}<br>"
-            f"Position %{{customdata[3]}}  ·  {item_term.capitalize()} <b>%{{text}}</b><br>"
-            "Majority share: %{customdata[4]:.0%}"
+            "<b>%{y}</b>  ·  Rank %{customdata[0]}  ·  %{customdata[1]}<br>"
+            f"Position %{{x}}  ·  {item_term.capitalize()} <b>%{{text}}</b><br>"
+            "Majority share: %{customdata[2]:.0%}"
             "<extra></extra>"
         ),
         xgap=0.5,
@@ -1188,18 +1190,39 @@ fig.add_trace(
     row=1, col=1,
 )
 
-pos_dist = np.stack([(majority_disp == i).sum(axis=0) for i in range(n_items)], axis=1)
+# Split items into distinctly-coloured vs gray "other" to cap trace count at ~12,
+# regardless of how many unique items are in the uploaded vocabulary.
+_colored_idx = [i for i in range(n_items) if item_colors[i] != OTHER_COLOR]
+_other_idx   = [i for i in range(n_items) if item_colors[i] == OTHER_COLOR]
 
-for item_idx in range(n_items):
+_n_bins_safe = max(n_show_bins, 1)
+# Loop bounded by number of distinct colors (≤ len(COLORS)), not vocabulary size.
+for local_i, item_idx in enumerate(_colored_idx):
     fig.add_trace(
         go.Bar(
             x=positions_disp,
-            y=pos_dist[:, item_idx] / max(n_show_bins, 1),
+            y=(majority_disp == item_idx).sum(axis=0) / _n_bins_safe,
             orientation='v',
             marker=dict(color=_eff_colors[item_idx], line=dict(width=0)),
             name=item_codes[item_idx],
             showlegend=False,
             hovertemplate=f"<b>{item_codes[item_idx]}</b>: %{{y:.0%}} at pos %{{x}}<extra></extra>",
+        ),
+        row=2, col=1,
+    )
+
+if _other_idx:
+    # Aggregate all "other" items into one gray bar trace.
+    _other_count = np.isin(majority_disp, _other_idx).sum(axis=0) / _n_bins_safe
+    fig.add_trace(
+        go.Bar(
+            x=positions_disp,
+            y=_other_count,
+            orientation='v',
+            marker=dict(color=OTHER_COLOR, line=dict(width=0)),
+            name='Other',
+            showlegend=False,
+            hovertemplate="<b>Other</b>: %{y:.0%} at pos %{x}<extra></extra>",
         ),
         row=2, col=1,
     )
@@ -1264,19 +1287,26 @@ _html_view_key = (
     tuple(sorted(sel_idx_set)),
     _custom_bg,
 )
+# Lazy HTML export: invalidate when the view changes but don't re-serialise until
+# the user explicitly requests it.  fig.to_html() can be expensive for large figures.
 if st.session_state.get('_html_view_key') != _html_view_key:
     st.session_state['_html_view_key'] = _html_view_key
-    st.session_state['_html_bytes'] = fig.to_html(
-        include_plotlyjs='cdn', config={'displayModeBar': True}
-    ).encode()
+    st.session_state.pop('_html_bytes', None)   # clear stale bytes
+
 with _dl_html_col:
-    st.download_button(
-        "Download HTML",
-        st.session_state['_html_bytes'],
-        file_name="atlas_view.html",
-        mime="text/html",
-        **_btn_full_width,
-    )
+    if '_html_bytes' in st.session_state:
+        st.download_button(
+            "Download HTML",
+            st.session_state['_html_bytes'],
+            file_name="atlas_view.html",
+            mime="text/html",
+            **_btn_full_width,
+        )
+    elif st.button("Prepare HTML", **_btn_full_width):
+        st.session_state['_html_bytes'] = fig.to_html(
+            include_plotlyjs='cdn', config={'displayModeBar': True}
+        ).encode()
+        st.rerun()
 
 # ── Drill-down ────────────────────────────────────────────────────────────────
 # Detect clicked bin from chart event (heatmap trace is curve 0)
