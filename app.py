@@ -624,15 +624,19 @@ function copyLink(){{
       btn.style.borderColor='';
     }},2000);
   }}
-  if(navigator.clipboard&&navigator.clipboard.writeText){{
-    navigator.clipboard.writeText(url).then(ok,function(){{prompt('Copy URL:',url);}});
-  }}else{{
+  function execCopy(){{
     var ta=document.createElement('textarea');
     ta.value=url;ta.style.cssText='position:fixed;opacity:0;';
     document.body.appendChild(ta);ta.focus();ta.select();
-    try{{if(document.execCommand('copy')){{ok();}}else{{prompt('Copy URL:',url);}}}}
-    catch(e){{prompt('Copy URL:',url);}}
+    var ok2=false;
+    try{{ok2=document.execCommand('copy');}}catch(e){{}}
     document.body.removeChild(ta);
+    if(ok2){{ok();}}else{{prompt('Copy URL:',url);}}
+  }}
+  if(navigator.clipboard&&navigator.clipboard.writeText){{
+    navigator.clipboard.writeText(url).then(ok,execCopy);
+  }}else{{
+    execCopy();
   }}
 }}
 </script>
