@@ -598,10 +598,8 @@ with st.sidebar:
         f'margin-bottom:8px;">Share this view</div>',
         unsafe_allow_html=True,
     )
-    # Build the share URL server-side: st.html() runs in a sandboxed iframe
-    # (sandbox="allow-scripts", no allow-same-origin) so window.location.href
-    # returns the iframe's null-origin URL, not the parent page's URL.
-    # Reconstruct the full URL from request headers + current query params.
+    # Build the share URL server-side and display with st.code() which has a
+    # native clipboard button — avoids st.html() sandbox restrictions entirely.
     try:
         _host  = st.context.headers.get("host", "localhost:8502")
         _proto = "https" if not _host.startswith("localhost") else "http"
@@ -609,32 +607,8 @@ with st.sidebar:
         _host, _proto = "localhost:8502", "http"
     _qs        = urllib.parse.urlencode(dict(st.query_params), doseq=True)
     _share_url = f"{_proto}://{_host}/" + (f"?{_qs}" if _qs else "")
-    _share_url_js = json.dumps(_share_url)   # safely quoted for JS string literal
-    st.html(
-        f"""<script>
-function copyAtlasLink(){{
-  var url={_share_url_js};
-  var btn=document.getElementById('share-btn');
-  try{{
-    navigator.clipboard.writeText(url).then(function(){{
-      btn.textContent='Copied!';
-      setTimeout(function(){{btn.textContent='Copy link';}},2000);
-    }},function(){{
-      prompt('Copy this URL:',url);
-    }});
-  }}catch(e){{
-    prompt('Copy this URL:',url);
-  }}
-}}
-</script>
-<button id="share-btn" onclick="copyAtlasLink()"
-  style="font-family:IBM Plex Mono,monospace;font-size:10px;letter-spacing:0.08em;
-         text-transform:uppercase;border:1px solid #2A2A2A;background:transparent;
-         padding:6px 14px;cursor:pointer;color:#1A1A1A;width:100%;">
-  Copy link
-</button>"""
-    )
-    st.caption("The link encodes your current filters, sort mode, and date range.")
+    st.code(_share_url, language=None)
+    st.caption("Click the copy icon above · link encodes filters, sort mode, and date range.")
 
 # ── Extract item vocabulary and threading variables ───────────────────────────
 item_codes = data.get('item_codes', list(ITEMS))
