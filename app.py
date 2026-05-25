@@ -1163,7 +1163,7 @@ if multi_date:
     d1 = date_range[1].strftime("%b %d, %Y")
     mode_sentence = (
         f"Each cell shows the <b>most frequent {item_term}</b> across the {date_count} selected snapshots "
-        f"({d0} → {d1}), with ties broken by the most recent week. "
+        f"({d0} → {d1}), with ties broken by the most recent snapshot. "
         f"Hover to see the majority share — how often that {item_term} actually held the position."
     )
     _date_label = f"{date_count} snapshots"
@@ -1412,7 +1412,7 @@ if drill_bin != _no_sel:
                 showscale=False,
                 text=mini_text,
                 hovertemplate=(
-                    "Week: <b>%{x}</b>  ·  Position: <b>%{y}</b><br>"
+                    "Date: <b>%{x}</b>  ·  Position: <b>%{y}</b><br>"
                     f"{item_term.capitalize()}: <b>%{{text}}</b><extra></extra>"
                 ),
                 xgap=0.5, ygap=0.5,
