@@ -29,6 +29,7 @@ Data schema (synthetic):
 import io
 import json
 import re
+import urllib.parse
 from pathlib import Path
 
 import streamlit as st
@@ -597,17 +598,32 @@ with st.sidebar:
         f'margin-bottom:8px;">Share this view</div>',
         unsafe_allow_html=True,
     )
+    # Build the share URL server-side: st.html() runs in a sandboxed iframe
+    # (sandbox="allow-scripts", no allow-same-origin) so window.location.href
+    # returns the iframe's null-origin URL, not the parent page's URL.
+    # Reconstruct the full URL from request headers + current query params.
+    try:
+        _host  = st.context.headers.get("host", "localhost:8502")
+        _proto = "https" if not _host.startswith("localhost") else "http"
+    except Exception:
+        _host, _proto = "localhost:8502", "http"
+    _qs        = urllib.parse.urlencode(dict(st.query_params), doseq=True)
+    _share_url = f"{_proto}://{_host}/" + (f"?{_qs}" if _qs else "")
+    _share_url_js = json.dumps(_share_url)   # safely quoted for JS string literal
     st.html(
         f"""<script>
 function copyAtlasLink(){{
+  var url={_share_url_js};
   var btn=document.getElementById('share-btn');
   try{{
-    navigator.clipboard.writeText(window.location.href).then(function(){{
+    navigator.clipboard.writeText(url).then(function(){{
       btn.textContent='Copied!';
       setTimeout(function(){{btn.textContent='Copy link';}},2000);
+    }},function(){{
+      prompt('Copy this URL:',url);
     }});
   }}catch(e){{
-    prompt('Copy this URL:',window.location.href);
+    prompt('Copy this URL:',url);
   }}
 }}
 </script>
