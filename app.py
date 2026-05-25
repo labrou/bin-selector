@@ -598,8 +598,9 @@ with st.sidebar:
         f'margin-bottom:8px;">Share this view</div>',
         unsafe_allow_html=True,
     )
-    # Build the share URL server-side and display with st.code() which has a
-    # native clipboard button — avoids st.html() sandbox restrictions entirely.
+    # Build the share URL server-side.
+    # Use st.components.v1.html() (sandbox="allow-scripts allow-same-origin")
+    # rather than st.html() (allow-scripts only) so navigator.clipboard works.
     try:
         _host  = st.context.headers.get("host", "localhost:8502")
         _proto = "https" if not _host.startswith("localhost") else "http"
@@ -607,8 +608,42 @@ with st.sidebar:
         _host, _proto = "localhost:8502", "http"
     _qs        = urllib.parse.urlencode(dict(st.query_params), doseq=True)
     _share_url = f"{_proto}://{_host}/" + (f"?{_qs}" if _qs else "")
-    st.code(_share_url, language=None)
-    st.caption("Click the copy icon above · link encodes filters, sort mode, and date range.")
+    _url_js    = json.dumps(_share_url)
+    st.components.v1.html(f"""
+<script>
+function copyLink(){{
+  var url={_url_js};
+  var btn=document.getElementById('share-btn');
+  function ok(){{
+    btn.textContent='✓ Copied';
+    btn.style.color='#22c55e';
+    btn.style.borderColor='#22c55e';
+    setTimeout(function(){{
+      btn.textContent='Copy link to this view';
+      btn.style.color='';
+      btn.style.borderColor='';
+    }},2000);
+  }}
+  if(navigator.clipboard&&navigator.clipboard.writeText){{
+    navigator.clipboard.writeText(url).then(ok,function(){{prompt('Copy URL:',url);}});
+  }}else{{
+    var ta=document.createElement('textarea');
+    ta.value=url;ta.style.cssText='position:fixed;opacity:0;';
+    document.body.appendChild(ta);ta.focus();ta.select();
+    try{{if(document.execCommand('copy')){{ok();}}else{{prompt('Copy URL:',url);}}}}
+    catch(e){{prompt('Copy URL:',url);}}
+    document.body.removeChild(ta);
+  }}
+}}
+</script>
+<button id="share-btn" onclick="copyLink()"
+  style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;
+         text-transform:uppercase;border:1px solid #888;background:transparent;
+         padding:6px 14px;cursor:pointer;color:#1A1A1A;width:100%;
+         transition:color .15s,border-color .15s;">
+  Copy link to this view
+</button>""", height=40)
+    st.caption("Link encodes your current filters, sort mode, and date range.")
 
 # ── Extract item vocabulary and threading variables ───────────────────────────
 item_codes = data.get('item_codes', list(ITEMS))
