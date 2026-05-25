@@ -460,11 +460,15 @@ st.markdown(f"""
        Default: hr has margin 32px top/bottom; parent has margin-bottom -16px.
        Override hr margins on main content only (not sidebar/dialogs). */
     [data-testid="stMain"] [data-testid="stMarkdownContainer"] hr {{
-        margin-top:    6px !important;
-        margin-bottom: 6px !important;
+        margin-top:    2px !important;
+        margin-bottom: 2px !important;
     }}
     [data-testid="stMain"] [data-testid="stMarkdownContainer"]:has(hr) {{
         margin-bottom: 0 !important;
+    }}
+    /* Tighten the gap between all top-level blocks in the main content stack */
+    [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {{
+        row-gap: 8px !important;
     }}
     [data-testid="stSidebar"] {{
         background-color: {_custom_bg};
