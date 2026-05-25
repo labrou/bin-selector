@@ -993,7 +993,7 @@ elif sort_mode == "Selected Share":
     sel_idx_set  = [item_codes.index(i) for i in selected_items]
     sel_mask     = np.isin(majority_f, sel_idx_set)
     share_count  = sel_mask.sum(axis=1)
-    pos_sum      = (sel_mask * positions_disp).sum(axis=1)   # lower = more prominent
+    pos_sum      = (sel_mask * (np.array(pos_indices) + 1)).sum(axis=1)   # lower = more prominent
     order        = np.lexsort([pos_sum, -share_count])        # primary: share; secondary: position
 else:
     order = np.arange(n_vis)
