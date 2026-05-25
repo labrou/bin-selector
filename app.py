@@ -598,55 +598,14 @@ with st.sidebar:
         f'margin-bottom:8px;">Share this view</div>',
         unsafe_allow_html=True,
     )
-    # Build the share URL server-side.
-    # Use st.components.v1.html() (sandbox="allow-scripts allow-same-origin")
-    # rather than st.html() (allow-scripts only) so navigator.clipboard works.
+    # Placeholder filled later (after _new_params is built) so the URL
+    # always reflects the CURRENT run's filter state, not the previous run's.
     try:
-        _host  = st.context.headers.get("host", "localhost:8502")
-        _proto = "https" if not _host.startswith("localhost") else "http"
+        _share_host  = st.context.headers.get("host", "localhost:8502")
+        _share_proto = "https" if not _share_host.startswith("localhost") else "http"
     except Exception:
-        _host, _proto = "localhost:8502", "http"
-    _qs        = urllib.parse.urlencode(dict(st.query_params), doseq=True)
-    _share_url = f"{_proto}://{_host}/" + (f"?{_qs}" if _qs else "")
-    _url_js    = json.dumps(_share_url)
-    st.components.v1.html(f"""
-<script>
-function copyLink(){{
-  var url={_url_js};
-  var btn=document.getElementById('share-btn');
-  function ok(){{
-    btn.textContent='✓ Copied';
-    btn.style.color='#22c55e';
-    btn.style.borderColor='#22c55e';
-    setTimeout(function(){{
-      btn.textContent='Copy link to this view';
-      btn.style.color='';
-      btn.style.borderColor='';
-    }},2000);
-  }}
-  function execCopy(){{
-    var ta=document.createElement('textarea');
-    ta.value=url;ta.style.cssText='position:fixed;opacity:0;';
-    document.body.appendChild(ta);ta.focus();ta.select();
-    var ok2=false;
-    try{{ok2=document.execCommand('copy');}}catch(e){{}}
-    document.body.removeChild(ta);
-    if(ok2){{ok();}}else{{prompt('Copy URL:',url);}}
-  }}
-  if(navigator.clipboard&&navigator.clipboard.writeText){{
-    navigator.clipboard.writeText(url).then(ok,execCopy);
-  }}else{{
-    execCopy();
-  }}
-}}
-</script>
-<button id="share-btn" onclick="copyLink()"
-  style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;
-         text-transform:uppercase;border:1px solid #888;background:transparent;
-         padding:6px 14px;cursor:pointer;color:#1A1A1A;width:100%;
-         transition:color .15s,border-color .15s;">
-  Copy link to this view
-</button>""", height=40)
+        _share_host, _share_proto = "localhost:8502", "http"
+    _share_placeholder = st.empty()
     st.caption("Link encodes your current filters, sort mode, and date range.")
 
 # ── Extract item vocabulary and threading variables ───────────────────────────
@@ -1510,4 +1469,49 @@ _new_params = {
 }
 if dict(st.query_params) != _new_params:
     st.query_params.update(_new_params)
+
+# ── Fill share-button placeholder with current-run URL ────────────────────────
+# Done here (after _new_params) so the URL always reflects the current state.
+_qs_share  = urllib.parse.urlencode(_new_params, doseq=True)
+_share_url = f"{_share_proto}://{_share_host}/" + (f"?{_qs_share}" if _qs_share else "")
+_url_js    = json.dumps(_share_url)
+with _share_placeholder.container():
+ st.components.v1.html(f"""
+<script>
+function copyLink(){{
+  var url={_url_js};
+  var btn=document.getElementById('share-btn');
+  function ok(){{
+    btn.textContent='✓ Copied';
+    btn.style.color='#22c55e';
+    btn.style.borderColor='#22c55e';
+    setTimeout(function(){{
+      btn.textContent='Copy link to this view';
+      btn.style.color='';
+      btn.style.borderColor='';
+    }},2000);
+  }}
+  function execCopy(){{
+    var ta=document.createElement('textarea');
+    ta.value=url;ta.style.cssText='position:fixed;opacity:0;';
+    document.body.appendChild(ta);ta.focus();ta.select();
+    var ok2=false;
+    try{{ok2=document.execCommand('copy');}}catch(e){{}}
+    document.body.removeChild(ta);
+    if(ok2){{ok();}}else{{prompt('Copy URL:',url);}}
+  }}
+  if(navigator.clipboard&&navigator.clipboard.writeText){{
+    navigator.clipboard.writeText(url).then(ok,execCopy);
+  }}else{{
+    execCopy();
+  }}
+}}
+</script>
+<button id="share-btn" onclick="copyLink()"
+  style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;
+         text-transform:uppercase;border:1px solid #888;background:transparent;
+         padding:6px 14px;cursor:pointer;color:#1A1A1A;width:100%;
+         transition:color .15s,border-color .15s;">
+  Copy link to this view
+</button>""", height=40)
 
