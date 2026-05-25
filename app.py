@@ -88,7 +88,7 @@ def sort_descriptions(bt, it):
         "Similarity":     f"{bt.capitalize()}s sharing the same {it}s at positions 1–4 cluster together, surfacing archetypes as broad horizontal color bands. Default.",
         f"{bt.capitalize()} Rank": f"Top = highest-ranked {bt}s (rank 1). Use this when the question is about rank: do top {bt}s share a distinct profile?",
         "Top-rank":       f"Groups {bt}s that share the same {it} at position 1; ties are resolved by position 2, then 3, and so on — a strict left-to-right sort. Use this to find {bt}s with an identical opening sequence.",
-        "Selected Share": f"Ranks {bt}s by what share of the visible positions are held by the selected {it}s — {bt}s where your chosen {it}s dominate rise to the top. Available when 1 to N−1 {it}s are highlighted.",
+        "Selected Share": f"Ranks {bt}s by how many visible positions are held by the selected {it}s; ties broken by which {bt} has them at earlier positions. Available when 1 to N−1 {it}s are highlighted.",
     }
 
 # ============ DATA GENERATION ============
@@ -990,9 +990,11 @@ elif sort_mode == "Similarity":
 elif sort_mode == "Top-rank":
     order = np.lexsort(majority_sort.astype(np.int32).T[::-1])
 elif sort_mode == "Selected Share":
-    sel_idx_set = [item_codes.index(i) for i in selected_items]
-    share_count = np.isin(majority_f, sel_idx_set).sum(axis=1)
-    order       = np.argsort(-share_count, kind='stable')
+    sel_idx_set  = [item_codes.index(i) for i in selected_items]
+    sel_mask     = np.isin(majority_f, sel_idx_set)
+    share_count  = sel_mask.sum(axis=1)
+    pos_sum      = (sel_mask * positions_disp).sum(axis=1)   # lower = more prominent
+    order        = np.lexsort([pos_sum, -share_count])        # primary: share; secondary: position
 else:
     order = np.arange(n_vis)
 
