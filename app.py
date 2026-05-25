@@ -893,6 +893,13 @@ with col_items:
     _all_items = list(pill_items)
     def _items_all():  st.session_state['items_pills'] = _all_items
     def _items_none(): st.session_state['items_pills'] = []
+    # on_change fires at the start of the next run (before the widget is
+    # instantiated), so session state is still writable at that point.
+    def _strip_other():
+        if _other_pill and _other_pill in (st.session_state.get('items_pills') or []):
+            st.session_state['items_pills'] = [
+                s for s in st.session_state['items_pills'] if s != _other_pill
+            ]
 
     # Append "other (N)" as a real (but non-actionable) pill so React manages it.
     _pill_display = pill_items + ([_other_pill] if _other_pill else [])
@@ -901,11 +908,11 @@ with col_items:
         _pill_display,
         selection_mode="multi",
         key="items_pills",
+        on_change=_strip_other,
     )
-    # Strip the display-only "other" entry if the user accidentally clicks it.
-    if _other_pill and selected_items and _other_pill in selected_items:
-        selected_items = [s for s in selected_items if s != _other_pill]
-        st.session_state['items_pills'] = selected_items
+    # Also filter from the value returned this run (covers the click cycle).
+    if _other_pill:
+        selected_items = [s for s in (selected_items or []) if s != _other_pill]
     ic1, ic2 = st.columns(2)
     with ic1:
         st.button("all",  key="btn_all",   on_click=_items_all)
