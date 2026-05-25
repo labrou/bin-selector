@@ -87,10 +87,13 @@ for the session.
 `segment` value, each `(bin_id, segment)` pair is treated as a distinct display unit.
 The heatmap label becomes `"bin_id · segment"`.
 
-**Duplicate rows.** Multiple rows for the same `(bin_id, region, date,
+**Duplicate rows.** Multiple rows for the same `(bin_id, segment, date,
 position)` key are treated as repeated measurements. The most frequent item
 wins; ties are broken by random choice. A sidebar warning shows how many keys
-were affected.
+were affected. After deduplication each `(bin, date, position)` cell holds
+exactly **one** item — raw row counts do not carry forward. When you then
+aggregate across a date range, each date contributes one vote per cell
+regardless of how many raw rows backed it.
 
 **Missing positions.** Bins do not need to have data for every position. Cells
 where a bin has no data for a given position are shown as empty (background
@@ -301,6 +304,9 @@ returns:
 
 1. For each `(bin, position)` cell, count occurrences of each item across
    the selected dates (cells with no data, value `-1`, are ignored).
+   **Each date contributes one vote** — the single item stored for that cell
+   after upload-time deduplication. Raw row counts from the source CSV play
+   no role here.
 2. Take the item with the maximum count.
 3. Tiebreak: prefer the item that appeared in the **most recent** date.
 4. If no item ever appeared (all dates have no data for that cell), return

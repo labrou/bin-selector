@@ -816,7 +816,8 @@ Open the **sidebar** (arrow at top-left) and upload a CSV with these columns:
 
 If the same `bin_id` appears with multiple `segment` values, each `(bin_id, segment)`
 pair becomes a distinct row labelled `bin_id · segment`. Multiple rows for the same (bin, date, position)
-are resolved by majority vote (random tiebreak).
+are resolved by majority vote (random tiebreak), producing **one item per date slot**.
+When you then select a date range, each date casts one vote — raw row counts do not carry forward.
 
 Up to **11** {item_term}s can receive distinct colours; the rest render in gray
 but still show their real label on hover and in cell text.
