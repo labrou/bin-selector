@@ -647,13 +647,16 @@ if st.session_state.get('_segment_sig') != _segment_sig:
 # Per-item pill colors via JS — only pill_items get distinct colours.
 # Discriminator: skip button groups that contain a segment label.
 _pill_colors  = [item_colors[item_codes.index(it)] for it in pill_items]
-_colors_json  = json.dumps(_pill_colors)
-_segments_json = json.dumps(available_segments)
 _n_gray       = n_items - len(pill_items)
+# "other (N)" is added as a real st.pills entry below; include its gray colour so
+# the JS colorizer styles it correctly.  JS injection (NGRAY) is disabled.
+_other_pill   = f'other ({_n_gray})' if _n_gray > 0 else None
+_colors_json  = json.dumps(_pill_colors + ([OTHER_COLOR] if _other_pill else []))
+_segments_json = json.dumps(available_segments)
 st.html(
     f"""<script>
 (function(){{
-  var C={_colors_json}, BG="{_custom_bg}", N=C.length, R={_segments_json}, NGRAY={_n_gray}, GRAY="{OTHER_COLOR}";
+  var C={_colors_json}, BG="{_custom_bg}", N=C.length, R={_segments_json}, NGRAY=0, GRAY="{OTHER_COLOR}";
   function go(){{
     try{{
       var gs=document.querySelectorAll('[data-baseweb="button-group"]');
@@ -891,12 +894,18 @@ with col_items:
     def _items_all():  st.session_state['items_pills'] = _all_items
     def _items_none(): st.session_state['items_pills'] = []
 
+    # Append "other (N)" as a real (but non-actionable) pill so React manages it.
+    _pill_display = pill_items + ([_other_pill] if _other_pill else [])
     selected_items = st.pills(
         f"{item_term.capitalize()}s",
-        pill_items,
+        _pill_display,
         selection_mode="multi",
         key="items_pills",
     )
+    # Strip the display-only "other" entry if the user accidentally clicks it.
+    if _other_pill and selected_items and _other_pill in selected_items:
+        selected_items = [s for s in selected_items if s != _other_pill]
+        st.session_state['items_pills'] = selected_items
     ic1, ic2 = st.columns(2)
     with ic1:
         st.button("all",  key="btn_all",   on_click=_items_all)
