@@ -730,6 +730,11 @@ When you select a date range spanning multiple snapshots, each cell shows the
 **most frequent {item_term}** across those dates (ties broken by the most recent snapshot).
 Hover any cell for exact values.
 
+Below the heatmap is a stacked bar showing, for each position, what share of
+**visible {bin_term}s have that {item_term} as their majority winner** — a count of
+wins, not a share-weighted average. A {bin_term} where an {item_term} won with 35%
+and one where it won with 95% each contribute equally (one count each).
+
 ---
 
 ### Filters — Row 1
@@ -1237,7 +1242,7 @@ for local_i, item_idx in enumerate(_colored_idx):
             marker=dict(color=_eff_colors[item_idx], line=dict(width=0)),
             name=item_codes[item_idx],
             showlegend=False,
-            hovertemplate=f"<b>{item_codes[item_idx]}</b>: %{{y:.0%}} at pos %{{x}}<extra></extra>",
+            hovertemplate=f"<b>{item_codes[item_idx]}</b> is majority winner in %{{y:.0%}} of {bin_term}s · pos %{{x}}<extra></extra>",
         ),
         row=2, col=1,
     )
@@ -1253,7 +1258,7 @@ if _other_idx:
             marker=dict(color=OTHER_COLOR, line=dict(width=0)),
             name='Other',
             showlegend=False,
-            hovertemplate="<b>Other</b>: %{y:.0%} at pos %{x}<extra></extra>",
+            hovertemplate=f"<b>Other</b> is majority winner in %{{y:.0%}} of {bin_term}s · pos %{{x}}<extra></extra>",
         ),
         row=2, col=1,
     )
@@ -1297,7 +1302,7 @@ fig.update_yaxes(
     showgrid=False, zeroline=False, range=[0, 1],
     tickvals=[0, 0.5, 1], ticktext=['0%', '50%', '100%'],
     tickfont=dict(size=9, family='IBM Plex Mono', color=MUTED),
-    title=dict(text=f'Share by {bin_term}', font=dict(size=9, family='IBM Plex Mono', color=MUTED)),
+    title=dict(text=f'% of {bin_term}s · majority winner', font=dict(size=9, family='IBM Plex Mono', color=MUTED)),
     row=2, col=1,
 )
 
