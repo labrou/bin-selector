@@ -155,7 +155,7 @@ def generate_data():
         'dates':       dates,
         'item_codes':  list(ITEMS),
         # First 10 items get distinct colors; KLP/LMR/NQT are "other" (gray).
-        'item_colors': list(COLORS[:10]) + [OTHER_COLOR] * (len(ITEMS) - 10),
+        'item_colors': list(COLORS[:N_MAX_USER_ITEMS]) + [OTHER_COLOR] * (len(ITEMS) - N_MAX_USER_ITEMS),
     }
 
 
@@ -779,7 +779,7 @@ next to the download buttons. Auto-fit expands cells to use available space;
 the slider sets a minimum (and the exact size when Auto-fit is off).
 
 **Download CSV** exports the current view (visible {bin_term}s, positions, and date range).
-**Download HTML** saves the interactive Plotly figure as a self-contained file.
+**Export heatmap** serialises the interactive Plotly chart to a self-contained HTML file you can share or archive.
 
 ---
 
@@ -1326,13 +1326,13 @@ if st.session_state.get('_html_view_key') != _html_view_key:
 with _dl_html_col:
     if '_html_bytes' in st.session_state:
         st.download_button(
-            "Download HTML",
+            "Download heatmap",
             st.session_state['_html_bytes'],
             file_name="atlas_view.html",
             mime="text/html",
             **_btn_full_width,
         )
-    elif st.button("Prepare HTML", **_btn_full_width):
+    elif st.button("Export heatmap", **_btn_full_width):
         st.session_state['_html_bytes'] = fig.to_html(
             include_plotlyjs='cdn', config={'displayModeBar': True}
         ).encode()
