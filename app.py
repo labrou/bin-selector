@@ -673,20 +673,26 @@ st.html(
           b.style.setProperty('border-color', C[j], 'important');
           b.style.setProperty('background-color', sel ? C[j] : '', 'important');
         }}
-        // Append gray pill indicator if needed and not already present
-        if(NGRAY>0 && !gs[i].querySelector('[data-gray-pill]')){{
-          var fake=realBs[0].cloneNode(true);
-          fake.setAttribute('data-gray-pill','1');
-          fake.textContent='other ('+NGRAY+')';
-          fake.removeAttribute('aria-pressed');
-          fake.removeAttribute('aria-checked');
-          fake.style.setProperty('background-color', GRAY, 'important');
-          fake.style.setProperty('color', '#ffffff', 'important');
-          fake.style.setProperty('border-color', GRAY, 'important');
-          fake.style.setProperty('opacity', '0.7', 'important');
-          fake.style.setProperty('cursor', 'default', 'important');
-          fake.onclick=function(e){{e.preventDefault();e.stopPropagation();return false;}};
-          gs[i].appendChild(fake);
+        // Inject "other (N)" pill as a SIBLING after the button-group, not inside it.
+        // Appending inside the React-managed button-group gets reconciled away immediately.
+        // A sibling element survives React's reconciliation of its children.
+        if(NGRAY>0){{
+          var sib=gs[i].nextElementSibling;
+          if(!sib || sib.getAttribute('data-gray-pill')!=='1'){{
+            // Remove any stale gray pill elsewhere under the same parent.
+            var stale=gs[i].parentNode.querySelector('[data-gray-pill]');
+            if(stale) stale.parentNode.removeChild(stale);
+            var rs=window.getComputedStyle(realBs[0]);
+            gs[i].insertAdjacentHTML('afterend',
+              '<button data-gray-pill="1" style="'
+              +'height:'+rs.height+';padding:'+rs.paddingTop+' '+rs.paddingRight+' '+rs.paddingBottom+' '+rs.paddingLeft+';'
+              +'font-family:'+rs.fontFamily+';font-size:'+rs.fontSize+';'
+              +'border-radius:'+rs.borderRadius+';'
+              +'background-color:'+GRAY+';color:#fff;border:1px solid '+GRAY+';'
+              +'opacity:0.7;cursor:default;pointer-events:none;margin-left:4px;vertical-align:middle;white-space:nowrap;'
+              +'">'+'other ('+NGRAY+')'+'</button>'
+            );
+          }}
         }}
       }}
     }}catch(e){{}}
