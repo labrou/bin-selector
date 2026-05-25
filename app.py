@@ -44,7 +44,7 @@ N_MAX_USER_ITEMS = N_MAX_ITEMS - 1   # user-selectable items; last slot reserved
 OTHER_LABEL  = '_OTHER_'   # synthetic label for items outside the kept vocabulary
 OTHER_COLOR  = '#9CA3AF'   # neutral gray — visually distinct from all real item colors
 
-ITEMS = ['APX', 'BRT', 'CFD', 'DLT', 'ETR', 'FRM', 'GVS', 'HXC', 'INV', 'JTL']
+ITEMS = ['APX', 'BRT', 'CFD', 'DLT', 'ETR', 'FRM', 'GVS', 'HXC', 'INV', 'JTL', 'KLP', 'LMR', 'NQT']
 COLORS = ['#B91C1C', '#1E3A8A', '#15803D', '#CA8A04', '#6D28D9',
           '#DB2777', '#0E7490', '#525252', '#92400E', '#4D7C0F',
           '#C2410C', '#0369A1']  # two extra slots for uploaded data
@@ -97,19 +97,19 @@ def generate_data():
     rng = np.random.default_rng(42)
 
     archetypes = np.array([
-        [0.32, 0.18, 0.14, 0.10, 0.08, 0.06, 0.04, 0.03, 0.03, 0.02],
-        [0.04, 0.28, 0.22, 0.14, 0.10, 0.08, 0.06, 0.04, 0.02, 0.02],
-        [0.08, 0.08, 0.08, 0.20, 0.18, 0.14, 0.10, 0.06, 0.04, 0.04],
-        [0.04, 0.04, 0.06, 0.06, 0.08, 0.12, 0.16, 0.18, 0.14, 0.12],
-        [0.14, 0.06, 0.16, 0.06, 0.14, 0.08, 0.14, 0.06, 0.10, 0.06],
+        [0.30, 0.16, 0.13, 0.09, 0.08, 0.06, 0.04, 0.03, 0.03, 0.02, 0.03, 0.02, 0.01],
+        [0.04, 0.26, 0.20, 0.13, 0.09, 0.07, 0.06, 0.04, 0.02, 0.02, 0.03, 0.02, 0.02],
+        [0.07, 0.07, 0.07, 0.19, 0.17, 0.13, 0.09, 0.05, 0.04, 0.04, 0.04, 0.02, 0.02],
+        [0.04, 0.04, 0.05, 0.05, 0.07, 0.11, 0.15, 0.17, 0.13, 0.11, 0.04, 0.02, 0.02],
+        [0.13, 0.05, 0.15, 0.05, 0.13, 0.07, 0.13, 0.05, 0.09, 0.06, 0.05, 0.02, 0.02],
     ])
 
     def positional_bias(pos):
         if pos < 5:
-            return np.array([3.0, 2.4, 2.0, 1.2, 1.0, 1.0, 0.8, 0.8, 0.8, 0.8])
+            return np.array([3.0, 2.4, 2.0, 1.2, 1.0, 1.0, 0.8, 0.8, 0.8, 0.8, 0.6, 0.5, 0.5])
         if pos < 15:
-            return np.array([1.2, 1.2, 1.2, 2.0, 2.0, 1.8, 1.0, 1.0, 0.8, 0.8])
-        return np.ones(10)
+            return np.array([1.2, 1.2, 1.2, 2.0, 2.0, 1.8, 1.0, 1.0, 0.8, 0.8, 0.6, 0.5, 0.5])
+        return np.ones(len(ITEMS))
 
     pos_biases = np.array([positional_bias(p) for p in range(NUM_POSITIONS)])  # (50, 10)
 
@@ -123,7 +123,7 @@ def generate_data():
     has_regime      = rng.random(NUM_BINS) < 0.20
     regime_weeks    = rng.integers(15, 38, NUM_BINS)
     regime_new_arch = rng.integers(0, 5, NUM_BINS)
-    drift_direction = rng.normal(0, 1, (NUM_BINS, 10))
+    drift_direction = rng.normal(0, 1, (NUM_BINS, len(ITEMS)))
     drift_strength  = 0.30
 
     end_date = date.today()
@@ -154,7 +154,8 @@ def generate_data():
         'bin_names':   np.array(BIN_NAMES),
         'dates':       dates,
         'item_codes':  list(ITEMS),
-        'item_colors': list(COLORS),
+        # First 10 items get distinct colors; KLP/LMR/NQT are "other" (gray).
+        'item_colors': list(COLORS[:10]) + [OTHER_COLOR] * (len(ITEMS) - 10),
     }
 
 
@@ -620,7 +621,14 @@ if colored_items is not None:
     pill_items = list(colored_items)
 else:
     item_colors = data.get('item_colors', list(COLORS[:n_items]))
-    pill_items  = item_codes
+    # Extend to n_items if the stored colors list is shorter than the vocabulary.
+    if len(item_colors) < n_items:
+        item_colors = item_colors + [OTHER_COLOR] * (n_items - len(item_colors))
+    # Items assigned OTHER_COLOR are "other" — exclude from interactive pills
+    # so that n_gray > 0 and the JS-injected "other (N)" pill appears.
+    pill_items = [c for c, col in zip(item_codes, item_colors) if col != OTHER_COLOR]
+    if not pill_items:
+        pill_items = list(item_codes)
 
 # Reset items_pills when the pill options change (new file or new colour selection)
 _item_sig = ','.join(pill_items)
