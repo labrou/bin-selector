@@ -455,6 +455,17 @@ st.markdown(f"""
         font-family: 'IBM Plex Mono', monospace !important;
         font-size: 11px !important;
     }}
+    /* ── Filter-row divider spacing ── */
+    /* Streamlit 1.57: st.divider() renders as hr inside stMarkdownContainer.
+       Default: hr has margin 32px top/bottom; parent has margin-bottom -16px.
+       Override hr margins on main content only (not sidebar/dialogs). */
+    [data-testid="stMain"] [data-testid="stMarkdownContainer"] hr {{
+        margin-top:    6px !important;
+        margin-bottom: 6px !important;
+    }}
+    [data-testid="stMain"] [data-testid="stMarkdownContainer"]:has(hr) {{
+        margin-bottom: 0 !important;
+    }}
     [data-testid="stSidebar"] {{
         background-color: {_custom_bg};
     }}
