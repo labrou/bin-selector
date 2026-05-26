@@ -988,7 +988,7 @@ sort_mode = st.radio(
 )
 st.markdown(
     f'<p style="font-family:IBM Plex Sans,sans-serif;font-size:13px;'
-    f'color:#666666;margin:10px 0 0 0;line-height:1.5;">'
+    f'color:#666666;margin:10px 0 14px 0;line-height:1.5;">'
     f'{sort_descriptions(bin_term, item_term).get(sort_mode, "")}</p>',
     unsafe_allow_html=True,
 )
