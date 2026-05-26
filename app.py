@@ -969,9 +969,9 @@ if st.session_state.get('sort_radio') not in sort_options:
 _sort_lbl_col, _sort_q_col, _ = st.columns([1.4, 1.0, 7.6], gap="small")
 with _sort_lbl_col:
     st.markdown(
-        f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
-        f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
-        f'margin:0;padding-top:2px;">Sort {bin_term}s by</p>',
+        f'<p style="font-family:IBM Plex Sans,sans-serif;font-size:13px;'
+        f'font-weight:600;color:{INK};margin:0;padding-top:2px;">'
+        f'Sort {bin_term}s by</p>',
         unsafe_allow_html=True,
     )
 with _sort_q_col:
@@ -1131,17 +1131,18 @@ else:
     _date_label = "1 snapshot"
 
 summary_html = f"""
-<p style="font-family:'IBM Plex Mono',monospace;font-size:11px;
-          letter-spacing:0.15em;text-transform:uppercase;color:{INK};
-          margin:0 0 5px 0;">Showing</p>
-<div style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:{INK};
-            line-height:1.6;margin-bottom:8px;max-width:900px;">
-    <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
-    <b>{n_show_pos}</b> position{'s' if n_show_pos != 1 else ''} ·
-    {_date_label} ·
-    {segment_term}s: <b>{', '.join(sorted(set(segments_active)))}</b> ·
-    sort: <b>{sort_mode}</b>
-    <div style="margin-top:5px;color:#666666;">{mode_sentence}</div>
+<div style="background:rgba(0,0,0,0.04);border-radius:4px;
+            padding:12px 16px;margin-bottom:8px;max-width:900px;">
+    <p style="font-family:'IBM Plex Sans',sans-serif;font-size:13px;
+              font-weight:600;color:{INK};margin:0 0 6px 0;">Showing</p>
+    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:{INK};line-height:1.6;">
+        <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
+        <b>{n_show_pos}</b> position{'s' if n_show_pos != 1 else ''} ·
+        {_date_label} ·
+        {segment_term}s: <b>{', '.join(sorted(set(segments_active)))}</b> ·
+        sort: <b>{sort_mode}</b>
+        <div style="margin-top:5px;color:#666666;">{mode_sentence}</div>
+    </div>
 </div>
 """
 st.markdown(summary_html, unsafe_allow_html=True)
