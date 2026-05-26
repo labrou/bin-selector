@@ -1519,46 +1519,11 @@ if dict(st.query_params) != _new_params:
 
 # ── Fill share-button placeholder with current-run URL ────────────────────────
 # Done here (after _new_params) so the URL always reflects the current state.
+# st.html() sandboxes its iframe (Streamlit ≥ 1.36), blocking both
+# navigator.clipboard and document.execCommand — so we use st.code() instead,
+# which has Streamlit's own built-in copy button and always works.
 _qs_share  = urllib.parse.urlencode(_new_params, doseq=True)
 _share_url = f"{_share_proto}://{_share_host}/" + (f"?{_qs_share}" if _qs_share else "")
-_url_js    = json.dumps(_share_url)
 with _share_placeholder.container():
- st.html(f"""
-<script>
-function copyLink(){{
-  var url={_url_js};
-  var btn=document.getElementById('share-btn');
-  function ok(){{
-    btn.textContent='✓ Copied';
-    btn.style.color='#22c55e';
-    btn.style.borderColor='#22c55e';
-    setTimeout(function(){{
-      btn.textContent='Copy link to this view';
-      btn.style.color='';
-      btn.style.borderColor='';
-    }},2000);
-  }}
-  function execCopy(){{
-    var ta=document.createElement('textarea');
-    ta.value=url;ta.style.cssText='position:fixed;opacity:0;';
-    document.body.appendChild(ta);ta.focus();ta.select();
-    var ok2=false;
-    try{{ok2=document.execCommand('copy');}}catch(e){{}}
-    document.body.removeChild(ta);
-    if(ok2){{ok();}}else{{prompt('Copy URL:',url);}}
-  }}
-  if(navigator.clipboard&&navigator.clipboard.writeText){{
-    navigator.clipboard.writeText(url).then(ok,execCopy);
-  }}else{{
-    execCopy();
-  }}
-}}
-</script>
-<button id="share-btn" onclick="copyLink()"
-  style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;
-         text-transform:uppercase;border:1px solid #888;background:transparent;
-         padding:6px 14px;cursor:pointer;color:#1A1A1A;width:100%;
-         transition:color .15s,border-color .15s;">
-  Copy link to this view
-</button>""")
+    st.code(_share_url, language=None)
 
