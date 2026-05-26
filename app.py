@@ -1178,14 +1178,6 @@ summary_html = f"""
 """
 st.markdown(summary_html, unsafe_allow_html=True)
 
-# ── Cell size row (downloads moved below chart) ───────────────────────────────
-_sz_col, _af_col, _ = st.columns([3, 1, 3])
-with _sz_col:
-    st.slider("Cell size (px)", 6, 28, cell_size, key="cell_sz")
-with _af_col:
-    st.write("")
-    st.checkbox("Auto-fit", value=auto_fit, key="auto_fit_cb")
-
 csv_bytes = make_view_csv(
     bin_names_disp, positions_disp, majority_disp, share_disp,
     ranks_disp, segments_disp, item_codes=item_codes, bin_term=bin_term,
@@ -1325,8 +1317,13 @@ if st.session_state.get('_html_view_key') != _html_view_key:
     st.session_state['_html_view_key'] = _html_view_key
     st.session_state.pop('_html_bytes', None)   # clear stale bytes
 
-# ── Download row (below chart) ────────────────────────────────────────────────
-_dl_csv_col, _dl_html_col, _ = st.columns([1, 1, 3])
+# ── Chart footer: cell size + auto-fit + downloads (all output controls) ─────
+_sz_col, _af_col, _gap_col, _dl_csv_col, _dl_html_col = st.columns([3, 1, 1, 1, 1])
+with _sz_col:
+    st.slider("Cell size (px)", 6, 28, cell_size, key="cell_sz")
+with _af_col:
+    st.write("")
+    st.checkbox("Auto-fit", value=auto_fit, key="auto_fit_cb")
 with _dl_csv_col:
     st.download_button(
         "Download CSV",
