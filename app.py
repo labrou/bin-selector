@@ -1131,12 +1131,11 @@ else:
     _date_label = "1 snapshot"
 
 summary_html = f"""
+<p style="font-family:'IBM Plex Mono',monospace;font-size:11px;
+          letter-spacing:0.15em;text-transform:uppercase;color:{INK};
+          margin:0 0 5px 0;">Showing</p>
 <div style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:{INK};
-            line-height:1.6;margin-top:6px;margin-bottom:8px;max-width:900px;
-            border-left:3px solid {INK};padding:6px 0 6px 10px;">
-    <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;
-                letter-spacing:0.15em;text-transform:uppercase;
-                margin-bottom:5px;">Showing</div>
+            line-height:1.6;margin-bottom:8px;max-width:900px;">
     <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
     <b>{n_show_pos}</b> position{'s' if n_show_pos != 1 else ''} ·
     {_date_label} ·
