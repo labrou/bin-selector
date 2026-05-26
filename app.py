@@ -434,24 +434,27 @@ st.markdown(f"""
         font-size: 11px !important;
         letter-spacing: 0.04em !important;
     }}
-    /* all/none/sort-guide: secondary utility — smaller than pill options */
+    /* all/none/sort-guide: link-style utility — no border, plain text */
     .stButton button {{
         font-family: 'IBM Plex Mono', monospace !important;
-        font-size: 9px !important;
+        font-size: 11px !important;
         letter-spacing: 0.06em !important;
         text-transform: none !important;
-        border-radius: 99px !important;
-        border: 1px solid #CCCCCC !important;
+        border: none !important;
         background: transparent !important;
+        box-shadow: none !important;
+        outline: none !important;
         color: #AAAAAA !important;
-        padding: 0px 9px !important;
+        padding: 0px 4px !important;
         min-height: 20px !important;
         line-height: 1.4 !important;
     }}
     .stButton button:hover {{
-        border-color: #888888 !important;
         color: {INK} !important;
         background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        text-decoration: underline !important;
     }}
     div[role="radiogroup"] label {{
         font-family: 'IBM Plex Mono', monospace !important;
@@ -878,18 +881,26 @@ with col_segments:
     def _reg_all():  st.session_state['segments_pills'] = _all_reg
     def _reg_none(): st.session_state['segments_pills'] = []
 
+    _shdr, _sall, _snone = st.columns([6, 1, 1], gap="small")
+    with _shdr:
+        st.markdown(
+            f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
+            f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
+            f'margin:0;padding-top:5px;">{segment_term.capitalize()}s</p>',
+            unsafe_allow_html=True,
+        )
+    with _sall:
+        st.button("all",  key="btn_reg_all",  on_click=_reg_all)
+    with _snone:
+        st.button("none", key="btn_reg_none", on_click=_reg_none)
     selected_segments = st.pills(
         f"{segment_term.capitalize()}s",
         available_segments,
         selection_mode="multi",
         default=available_segments,
         key="segments_pills",
+        label_visibility="collapsed",
     )
-    rc1, rc2 = st.columns(2)
-    with rc1:
-        st.button("all",  key="btn_reg_all",  on_click=_reg_all)
-    with rc2:
-        st.button("none", key="btn_reg_none", on_click=_reg_none)
 
 with col_items:
     if 'items_pills' not in st.session_state:
@@ -906,6 +917,18 @@ with col_items:
                 s for s in st.session_state['items_pills'] if s != _other_pill
             ]
 
+    _ihdr, _iall, _inone = st.columns([6, 1, 1], gap="small")
+    with _ihdr:
+        st.markdown(
+            f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
+            f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
+            f'margin:0;padding-top:5px;">{item_term.capitalize()}s</p>',
+            unsafe_allow_html=True,
+        )
+    with _iall:
+        st.button("all",  key="btn_all",   on_click=_items_all)
+    with _inone:
+        st.button("none", key="btn_clear", on_click=_items_none)
     # Append "other (N)" as a real (but non-actionable) pill so React manages it.
     _pill_display = pill_items + ([_other_pill] if _other_pill else [])
     selected_items = st.pills(
@@ -914,15 +937,11 @@ with col_items:
         selection_mode="multi",
         key="items_pills",
         on_change=_strip_other,
+        label_visibility="collapsed",
     )
     # Also filter from the value returned this run (covers the click cycle).
     if _other_pill:
         selected_items = [s for s in (selected_items or []) if s != _other_pill]
-    ic1, ic2 = st.columns(2)
-    with ic1:
-        st.button("all",  key="btn_all",   on_click=_items_all)
-    with ic2:
-        st.button("none", key="btn_clear", on_click=_items_none)
 
 # ── Row 2: Ranges — Date / Bin Rank / Position ────────────────────────────────
 st.divider()
