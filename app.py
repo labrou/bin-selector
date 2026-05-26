@@ -960,34 +960,42 @@ st.divider()
 
 col_date, col_rank, col_pos = st.columns(3)
 
-if 'wk_slider' not in st.session_state:
-    _n = len(data['dates'])
-    st.session_state['wk_slider'] = (data['dates'][max(0, _n - 13)], data['dates'][-1])
+# Pop-before-render: remove key from session state, then pass as value=.
+# This tells Streamlit the widget is a range slider (value is a tuple) while
+# keeping the key absent at check time — silencing the default-vs-SS warning.
+_n = len(data['dates'])
+_wk = st.session_state.pop('wk_slider', None)
+if not isinstance(_wk, (list, tuple)):
+    _wk = (data['dates'][max(0, _n - 13)], data['dates'][-1])
 
 with col_date:
     date_range = st.select_slider(
         "Date",
         options=data['dates'],
+        value=_wk,
         format_func=lambda d: d.strftime("%b %d, '%y"),
         key="wk_slider",
     )
 
+_rk = st.session_state.pop('rank_slider', None)
+if not isinstance(_rk, (list, tuple)) or _rk[0] < min_rank_val or _rk[1] > max_rank_val or _rk[0] > _rk[1]:
+    _rk = (min_rank_val, max_rank_val)
+
 with col_rank:
-    _rk = st.session_state.get('rank_slider')
-    if _rk is not None and (_rk[0] < min_rank_val or _rk[1] > max_rank_val or _rk[0] > _rk[1]):
-        del st.session_state['rank_slider']
-    if 'rank_slider' not in st.session_state:
-        st.session_state['rank_slider'] = (min_rank_val, max_rank_val)
     rank_range = st.slider(
         f"{bin_term.capitalize()} rank range", min_rank_val, max_rank_val,
+        value=_rk,
         key="rank_slider",
     )
 
+_ps = st.session_state.pop('pos_slider', None)
+if not isinstance(_ps, (list, tuple)) or _ps[1] > n_pos_total:
+    _ps = (1, n_pos_total)
+
 with col_pos:
-    if 'pos_slider' not in st.session_state:
-        st.session_state['pos_slider'] = (1, n_pos_total)
     pos_range = st.slider(
         "Position range", 1, n_pos_total,
+        value=_ps,
         key="pos_slider",
     )
 
