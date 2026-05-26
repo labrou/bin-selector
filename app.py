@@ -1130,7 +1130,7 @@ summary_html = f"""
             line-height:1.6;margin-bottom:8px;max-width:900px;
             border-left:3px solid {INK};padding-left:10px;">
     <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;
-                letter-spacing:0.14em;text-transform:uppercase;color:{INK};
+                letter-spacing:0.15em;text-transform:uppercase;color:{INK};
                 margin-bottom:4px;">Showing</div>
     <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
     <b>{n_show_pos}</b> position{'s' if n_show_pos != 1 else ''} ·
@@ -1169,7 +1169,7 @@ if n_gray > 0:
         f'</span>'
     )
 st.markdown(
-    '<div style="display:flex;flex-wrap:wrap;gap:2px;margin-bottom:4px;">'
+    '<div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:10px;margin-bottom:4px;">'
     + ''.join(legend_parts) + '</div>',
     unsafe_allow_html=True,
 )
