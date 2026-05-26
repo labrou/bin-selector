@@ -879,13 +879,16 @@ with _help_col:
 col_segments, col_items = st.columns(2)
 
 with col_segments:
-    if 'segments_pills' in st.session_state:
+    # Initialise default via session state (avoids default= conflict warning).
+    if 'segments_pills' not in st.session_state:
+        st.session_state['segments_pills'] = list(available_segments)
+    else:
         stored = st.session_state['segments_pills']
-        valid = [r for r in stored if r in available_segments]
+        valid  = [r for r in stored if r in available_segments]
         if stored and not valid:
-            del st.session_state['segments_pills']  # dataset changed, reset
-        else:
-            st.session_state['segments_pills'] = valid  # preserve empty (None clicked)
+            st.session_state['segments_pills'] = list(available_segments)  # dataset changed
+        elif valid != stored:
+            st.session_state['segments_pills'] = valid  # prune stale values
 
     _all_reg  = list(available_segments)
     def _reg_all():  st.session_state['segments_pills'] = _all_reg
@@ -907,7 +910,6 @@ with col_segments:
         f"{segment_term.capitalize()}s",
         available_segments,
         selection_mode="multi",
-        default=available_segments,
         key="segments_pills",
         label_visibility="collapsed",
     )
@@ -1506,7 +1508,7 @@ _qs_share  = urllib.parse.urlencode(_new_params, doseq=True)
 _share_url = f"{_share_proto}://{_share_host}/" + (f"?{_qs_share}" if _qs_share else "")
 _url_js    = json.dumps(_share_url)
 with _share_placeholder.container():
- st.iframe(srcdoc=f"""
+ st.html(f"""
 <script>
 function copyLink(){{
   var url={_url_js};
@@ -1543,5 +1545,5 @@ function copyLink(){{
          padding:6px 14px;cursor:pointer;color:#1A1A1A;width:100%;
          transition:color .15s,border-color .15s;">
   Copy link to this view
-</button>""", height=40)
+</button>""")
 
