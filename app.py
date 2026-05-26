@@ -437,7 +437,7 @@ st.markdown(f"""
     /* all/none/sort-guide: link-style utility — no border, plain text */
     .stButton button {{
         font-family: 'IBM Plex Mono', monospace !important;
-        font-size: 11px !important;
+        font-size: 9px !important;
         letter-spacing: 0.06em !important;
         text-transform: none !important;
         border: none !important;
@@ -881,7 +881,7 @@ with col_segments:
     def _reg_all():  st.session_state['segments_pills'] = _all_reg
     def _reg_none(): st.session_state['segments_pills'] = []
 
-    _shdr, _sall, _snone = st.columns([6, 1, 1], gap="small")
+    _shdr, _sall, _snone, _ = st.columns([3, 1, 1, 5], gap="small")
     with _shdr:
         st.markdown(
             f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
@@ -917,7 +917,7 @@ with col_items:
                 s for s in st.session_state['items_pills'] if s != _other_pill
             ]
 
-    _ihdr, _iall, _inone = st.columns([6, 1, 1], gap="small")
+    _ihdr, _iall, _inone, _ = st.columns([3, 1, 1, 5], gap="small")
     with _ihdr:
         st.markdown(
             f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
