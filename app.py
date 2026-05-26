@@ -1506,7 +1506,7 @@ _qs_share  = urllib.parse.urlencode(_new_params, doseq=True)
 _share_url = f"{_share_proto}://{_share_host}/" + (f"?{_qs_share}" if _qs_share else "")
 _url_js    = json.dumps(_share_url)
 with _share_placeholder.container():
- st.components.v1.html(f"""
+ st.iframe(srcdoc=f"""
 <script>
 function copyLink(){{
   var url={_url_js};
