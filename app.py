@@ -991,6 +991,7 @@ sort_mode = st.radio(
     label_visibility="collapsed",
 )
 st.caption(sort_descriptions(bin_term, item_term).get(sort_mode, ""))
+st.divider()
 
 # ── Filtering ─────────────────────────────────────────────────────────────────
 segments_active = selected_segments if selected_segments else available_segments
@@ -1177,8 +1178,8 @@ summary_html = f"""
 """
 st.markdown(summary_html, unsafe_allow_html=True)
 
-# ── Cell size + Export row ────────────────────────────────────────────────────
-_sz_col, _af_col, _gap_col, _dl_csv_col, _dl_html_col = st.columns([2, 1, 2, 1, 1])
+# ── Cell size row (downloads moved below chart) ───────────────────────────────
+_sz_col, _af_col, _ = st.columns([3, 1, 3])
 with _sz_col:
     st.slider("Cell size (px)", 6, 28, cell_size, key="cell_sz")
 with _af_col:
@@ -1189,14 +1190,6 @@ csv_bytes = make_view_csv(
     bin_names_disp, positions_disp, majority_disp, share_disp,
     ranks_disp, segments_disp, item_codes=item_codes, bin_term=bin_term,
 )
-with _dl_csv_col:
-    st.download_button(
-        "Download CSV",
-        csv_bytes,
-        file_name="atlas_view.csv",
-        mime="text/csv",
-        **_btn_full_width,
-    )
 
 # ── Build figure ──────────────────────────────────────────────────────────────
 fig = make_subplots(
@@ -1332,6 +1325,16 @@ if st.session_state.get('_html_view_key') != _html_view_key:
     st.session_state['_html_view_key'] = _html_view_key
     st.session_state.pop('_html_bytes', None)   # clear stale bytes
 
+# ── Download row (below chart) ────────────────────────────────────────────────
+_dl_csv_col, _dl_html_col, _ = st.columns([1, 1, 3])
+with _dl_csv_col:
+    st.download_button(
+        "Download CSV",
+        csv_bytes,
+        file_name="atlas_view.csv",
+        mime="text/csv",
+        **_btn_full_width,
+    )
 with _dl_html_col:
     if '_html_bytes' in st.session_state:
         st.download_button(
