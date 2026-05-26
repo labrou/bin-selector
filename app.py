@@ -960,11 +960,14 @@ st.divider()
 
 col_date, col_rank, col_pos = st.columns(3)
 
+if 'wk_slider' not in st.session_state:
+    _n = len(data['dates'])
+    st.session_state['wk_slider'] = (data['dates'][max(0, _n - 13)], data['dates'][-1])
+
 with col_date:
     date_range = st.select_slider(
         "Date",
         options=data['dates'],
-        value=(data['dates'][-13], data['dates'][-1]),
         format_func=lambda d: d.strftime("%b %d, '%y"),
         key="wk_slider",
     )
@@ -973,14 +976,18 @@ with col_rank:
     _rk = st.session_state.get('rank_slider')
     if _rk is not None and (_rk[0] < min_rank_val or _rk[1] > max_rank_val or _rk[0] > _rk[1]):
         del st.session_state['rank_slider']
+    if 'rank_slider' not in st.session_state:
+        st.session_state['rank_slider'] = (min_rank_val, max_rank_val)
     rank_range = st.slider(
-        f"{bin_term.capitalize()} rank range", min_rank_val, max_rank_val, (min_rank_val, max_rank_val),
+        f"{bin_term.capitalize()} rank range", min_rank_val, max_rank_val,
         key="rank_slider",
     )
 
 with col_pos:
+    if 'pos_slider' not in st.session_state:
+        st.session_state['pos_slider'] = (1, n_pos_total)
     pos_range = st.slider(
-        "Position range", 1, n_pos_total, (1, n_pos_total),
+        "Position range", 1, n_pos_total,
         key="pos_slider",
     )
 
