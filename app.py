@@ -969,8 +969,8 @@ if st.session_state.get('sort_radio') not in sort_options:
 _sort_lbl_col, _sort_q_col, _ = st.columns([1.4, 1.0, 7.6], gap="small")
 with _sort_lbl_col:
     st.markdown(
-        f'<p style="font-family:IBM Plex Mono,monospace;font-size:10px;'
-        f'letter-spacing:0.12em;text-transform:uppercase;color:{MUTED};'
+        f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
+        f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
         f'margin:0;padding-top:2px;">Sort {bin_term}s by</p>',
         unsafe_allow_html=True,
     )
