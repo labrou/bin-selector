@@ -398,10 +398,10 @@ st.markdown(f"""
     }}
     .eyebrow {{
         font-family: 'IBM Plex Mono', monospace;
-        font-size: 10px;
-        letter-spacing: 0.18em;
+        font-size: 11px;
+        letter-spacing: 0.15em;
         text-transform: uppercase;
-        color: {MUTED};
+        color: {INK};
         margin-bottom: 4px;
     }}
     .title {{
@@ -424,27 +424,28 @@ st.markdown(f"""
     }}
     [data-testid="stWidgetLabel"] p {{
         font-family: 'IBM Plex Mono', monospace !important;
-        font-size: 10px !important;
+        font-size: 11px !important;
         letter-spacing: 0.12em !important;
         text-transform: uppercase !important;
-        color: {MUTED} !important;
+        color: {INK} !important;
     }}
     div[data-baseweb="button-group"] button {{
         font-family: 'IBM Plex Mono', monospace !important;
         font-size: 11px !important;
         letter-spacing: 0.04em !important;
     }}
+    /* all/none/sort-guide: secondary utility — smaller than pill options */
     .stButton button {{
         font-family: 'IBM Plex Mono', monospace !important;
-        font-size: 10px !important;
-        letter-spacing: 0.04em !important;
+        font-size: 9px !important;
+        letter-spacing: 0.06em !important;
         text-transform: none !important;
         border-radius: 99px !important;
         border: 1px solid #CCCCCC !important;
         background: transparent !important;
-        color: #888888 !important;
-        padding: 1px 12px !important;
-        min-height: 24px !important;
+        color: #AAAAAA !important;
+        padding: 0px 9px !important;
+        min-height: 20px !important;
         line-height: 1.4 !important;
     }}
     .stButton button:hover {{
@@ -510,8 +511,8 @@ with st.sidebar:
     )
     st.divider()
     st.markdown(
-        f'<div style="font-family:IBM Plex Mono,monospace;font-size:10px;'
-        f'letter-spacing:0.18em;text-transform:uppercase;color:{MUTED};'
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:11px;'
+        f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
         f'margin-bottom:8px;">Data source</div>',
         unsafe_allow_html=True,
     )
@@ -571,8 +572,8 @@ with st.sidebar:
 
     st.divider()
     st.markdown(
-        f'<div style="font-family:IBM Plex Mono,monospace;font-size:10px;'
-        f'letter-spacing:0.18em;text-transform:uppercase;color:{MUTED};'
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:11px;'
+        f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
         f'margin-bottom:8px;">Labels</div>',
         unsafe_allow_html=True,
     )
@@ -582,8 +583,8 @@ with st.sidebar:
 
     st.divider()
     st.markdown(
-        f'<div style="font-family:IBM Plex Mono,monospace;font-size:10px;'
-        f'letter-spacing:0.18em;text-transform:uppercase;color:{MUTED};'
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:11px;'
+        f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
         f'margin-bottom:8px;">Display</div>',
         unsafe_allow_html=True,
     )
@@ -593,8 +594,8 @@ with st.sidebar:
 
     st.divider()
     st.markdown(
-        f'<div style="font-family:IBM Plex Mono,monospace;font-size:10px;'
-        f'letter-spacing:0.18em;text-transform:uppercase;color:{MUTED};'
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:11px;'
+        f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
         f'margin-bottom:8px;">Share this view</div>',
         unsafe_allow_html=True,
     )
@@ -861,11 +862,6 @@ with _help_col:
         _show_user_guide()
 
 # ── Row 1: Filters — Regions + Items ──────────────────────────────────────────
-st.markdown(
-    f'<style>.pill-btn button{{font-size:10px !important;padding:2px 10px !important;'
-    f'height:auto !important;min-height:0 !important;}}</style>',
-    unsafe_allow_html=True,
-)
 
 col_segments, col_items = st.columns(2)
 
@@ -1133,7 +1129,7 @@ summary_html = f"""
 <div style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:{INK};
             line-height:1.6;margin-bottom:8px;max-width:900px;
             border-left:3px solid {INK};padding-left:10px;">
-    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;
                 letter-spacing:0.14em;text-transform:uppercase;color:{INK};
                 margin-bottom:4px;">Showing</div>
     <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
