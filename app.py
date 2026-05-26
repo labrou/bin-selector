@@ -988,7 +988,7 @@ sort_mode = st.radio(
 )
 st.markdown(
     f'<p style="font-family:IBM Plex Sans,sans-serif;font-size:11px;'
-    f'color:{INK};margin:2px 0 0 0;line-height:1.5;">'
+    f'color:#666666;margin:2px 0 0 0;line-height:1.5;">'
     f'{sort_descriptions(bin_term, item_term).get(sort_mode, "")}</p>',
     unsafe_allow_html=True,
 )
@@ -1130,22 +1130,19 @@ else:
     mode_sentence = f"Showing a single snapshot ({d0}): each cell is the {item_term} at that position."
     _date_label = "1 snapshot"
 
-st.markdown(
-    f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
-    f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
-    f'margin:0 0 4px 0;">Showing</p>',
-    unsafe_allow_html=True,
-)
 summary_html = f"""
 <div style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:{INK};
-            line-height:1.6;margin-bottom:8px;max-width:900px;
-            border-left:3px solid {INK};padding-left:10px;">
+            line-height:1.6;margin-top:6px;margin-bottom:8px;max-width:900px;
+            border-left:3px solid {INK};padding:6px 0 6px 10px;">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;
+                letter-spacing:0.15em;text-transform:uppercase;
+                margin-bottom:5px;">Showing</div>
     <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
     <b>{n_show_pos}</b> position{'s' if n_show_pos != 1 else ''} ·
     {_date_label} ·
     {segment_term}s: <b>{', '.join(sorted(set(segments_active)))}</b> ·
     sort: <b>{sort_mode}</b>
-    <div style="margin-top:5px;">{mode_sentence}</div>
+    <div style="margin-top:5px;color:#666666;">{mode_sentence}</div>
 </div>
 """
 st.markdown(summary_html, unsafe_allow_html=True)
