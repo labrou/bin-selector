@@ -1111,7 +1111,42 @@ text_grid = np.where(
 )
 z         = majority_disp.astype(float)
 
-# ── Legend ────────────────────────────────────────────────────────────────────
+# ── View summary ──────────────────────────────────────────────────────────────
+date_count = len(date_indices)
+multi_date = date_count > 1
+
+if multi_date:
+    d0 = date_range[0].strftime("%b %d, %Y")
+    d1 = date_range[1].strftime("%b %d, %Y")
+    mode_sentence = (
+        f"Each cell shows the <b>most frequent {item_term}</b> across the {date_count} selected snapshots "
+        f"({d0} → {d1}), with ties broken by the most recent snapshot. "
+        f"Hover to see the majority share — how often that {item_term} actually held the position."
+    )
+    _date_label = f"{date_count} snapshots"
+else:
+    d0 = date_range[0].strftime("%b %d, %Y")
+    mode_sentence = f"Showing a single snapshot ({d0}): each cell is the {item_term} at that position."
+    _date_label = "1 snapshot"
+
+summary_html = f"""
+<div style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:{INK};
+            line-height:1.6;margin-bottom:8px;max-width:900px;
+            border-left:3px solid {INK};padding-left:10px;">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;
+                letter-spacing:0.14em;text-transform:uppercase;color:{INK};
+                margin-bottom:4px;">Showing</div>
+    <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
+    <b>{n_show_pos}</b> position{'s' if n_show_pos != 1 else ''} ·
+    {_date_label} ·
+    {segment_term}s: <b>{', '.join(sorted(set(segments_active)))}</b> ·
+    sort: <b>{sort_mode}</b>
+    <div style="margin-top:5px;color:#4A4A4A;">{mode_sentence}</div>
+</div>
+"""
+st.markdown(summary_html, unsafe_allow_html=True)
+
+# ── Legend (below summary, directly above heatmap) ────────────────────────────
 _item_code_idx = {code: i for i, code in enumerate(item_codes)}
 legend_parts = []
 for item in pill_items:
@@ -1138,45 +1173,10 @@ if n_gray > 0:
         f'</span>'
     )
 st.markdown(
-    '<div style="display:flex;flex-wrap:wrap;gap:2px;margin-bottom:6px;">'
+    '<div style="display:flex;flex-wrap:wrap;gap:2px;margin-bottom:4px;">'
     + ''.join(legend_parts) + '</div>',
     unsafe_allow_html=True,
 )
-
-# ── View summary ──────────────────────────────────────────────────────────────
-date_count = len(date_indices)
-multi_date = date_count > 1
-
-if multi_date:
-    d0 = date_range[0].strftime("%b %d, %Y")
-    d1 = date_range[1].strftime("%b %d, %Y")
-    mode_sentence = (
-        f"Each cell shows the <b>most frequent {item_term}</b> across the {date_count} selected snapshots "
-        f"({d0} → {d1}), with ties broken by the most recent snapshot. "
-        f"Hover to see the majority share — how often that {item_term} actually held the position."
-    )
-    _date_label = f"{date_count} snapshots"
-else:
-    d0 = date_range[0].strftime("%b %d, %Y")
-    mode_sentence = f"Showing a single snapshot ({d0}): each cell is the {item_term} at that position."
-    _date_label = "1 snapshot"
-
-summary_html = f"""
-<div style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#4A4A4A;
-            line-height:1.6;margin-bottom:10px;max-width:900px;
-            border-left:2px solid #2A2A2A;padding-left:10px;">
-    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;
-                letter-spacing:0.14em;text-transform:uppercase;color:{MUTED};
-                margin-bottom:4px;">View summary</div>
-    <b>{n_show_bins}</b> {bin_term}{'s' if n_show_bins != 1 else ''} ·
-    <b>{n_show_pos}</b> position{'s' if n_show_pos != 1 else ''} ·
-    {_date_label} ·
-    {segment_term}s: <b>{', '.join(sorted(set(segments_active)))}</b> ·
-    sort: <b>{sort_mode}</b>
-    <div style="margin-top:5px;color:#4A4A4A;">{mode_sentence}</div>
-</div>
-"""
-st.markdown(summary_html, unsafe_allow_html=True)
 
 csv_bytes = make_view_csv(
     bin_names_disp, positions_disp, majority_disp, share_disp,
