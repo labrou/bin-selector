@@ -119,8 +119,8 @@ return a dictionary with the following keys:
 | Key           | Type          | Shape                    | Description |
 |---------------|---------------|--------------------------|-------------|
 | `items`       | `np.int16`    | (n_bins, n_dates, n_pos) | Item index at each (bin, date, position). `-1` means no data for that cell. |
-| `bin_ranks`   | `np.int64`    | (n_bins,)                | Global rank per bin. |
-| `bin_regions` | `np.str_`     | (n_bins,)                | Region label per bin. |
+| `bin_ranks`    | `np.int64`    | (n_bins,)                | Global rank per bin. |
+| `bin_segments` | `np.str_`     | (n_bins,)                | Segment label per bin (the bin grouping attribute). |
 | `bin_names`   | `np.str_`     | (n_bins,)                | Display name per bin (used on y-axis). |
 | `dates`       | `list[date]`  | n_dates entries          | Date stamps from oldest to most recent. |
 | `item_codes`  | `list[str]`   | n_items entries          | All item labels, frequency-ordered for uploaded data. |
@@ -216,7 +216,7 @@ changes.
 
 See [Sort modes](#sort-modes) below.
 
-### Below view summary — Cell size & Export
+### Below heatmap — Cell size & Export
 
 **Cell size** · Slider sets a preferred cell size in pixels (6–28 px,
 default 12). **Auto-fit** expands cells to fill the available space:
@@ -233,6 +233,8 @@ positions, and date range) as a CSV file.
 
 **Download HTML** · Saves the interactive Plotly figure as a
 self-contained HTML file.
+
+All three controls appear in a single row directly below the heatmap.
 
 ### User guide
 
@@ -338,7 +340,7 @@ COLORS           = ['#B91C1C', '#1E3A8A', ...]  # 12 qualitative colours
   `item` column; returns items ordered by descending frequency and a count
   dict. Cached by file content.
 - `load_user_data(file_bytes, filename)` — full parse; keeps all items with
-  real names; handles composite `(bin_id, region)` keys and deduplication.
+  real names; handles composite `(bin_id, segment)` keys and deduplication.
   Returns the data dictionary without colour information (colours are
   assigned in the UI).
 - `generate_data()` — synthetic data generator. Cached with fixed seed.
@@ -370,9 +372,9 @@ on every interaction:
 8. **Row 2:** Date range, bin rank range, position range sliders.
 9. **Row 3:** Sort mode radio.
 10. Filter pipeline → `compute_majority` → sort → build colorscale.
-11. View summary block.
-12. Cell size slider + Auto-fit checkbox + Download CSV/HTML buttons.
-13. Heatmap + marginal bar subplot → `st.plotly_chart`.
+11. View summary block + colour legend.
+12. Heatmap + marginal bar subplot → `st.plotly_chart`.
+13. Cell size slider + Auto-fit checkbox + Download CSV/HTML buttons.
 14. Drill-down selectbox for per-bin time-series heatmap.
 
 ### Colour assignment
