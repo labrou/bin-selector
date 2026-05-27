@@ -244,8 +244,25 @@ def load_user_data(file_bytes: bytes, filename: str):
         st.error(f"CSV is missing columns: {', '.join(sorted(missing))}")
         return None
 
-    # Date: treat as M/D/YYYY (dayfirst=False); dateutil handles single-digit M/D
-    df['date']     = pd.to_datetime(df['date'], dayfirst=False).dt.date
+    # Date: parse as M/D/YYYY (single- or double-digit month/day, 4-digit year).
+    # %m and %d in strptime accept non-padded values (e.g. "1/5/2024" works).
+    # Use explicit format to avoid pandas inference ambiguity; fall back to
+    # dayfirst=False generic parsing so mixed-format files still load.
+    _raw_dates = df['date'].astype(str)
+    df['date']  = pd.to_datetime(_raw_dates, format='%m/%d/%Y', errors='coerce')
+    _n_nat      = df['date'].isna().sum()
+    if _n_nat:
+        _fallback = pd.to_datetime(_raw_dates[df['date'].isna()],
+                                   dayfirst=False, errors='coerce')
+        df.loc[df['date'].isna(), 'date'] = _fallback
+        _still_nat = df['date'].isna().sum()
+        if _still_nat:
+            st.warning(
+                f"{_still_nat:,} row(s) had unparseable dates and will be dropped. "
+                f"Expected format: M/D/YYYY (e.g. 1/5/2024 or 12/31/2024)."
+            )
+            df = df[df['date'].notna()]
+    df['date'] = df['date'].dt.date
     df['item']     = df['item'].astype(str)
     df['bin_id']   = df['bin_id'].astype(str)
     df['segment']  = df['segment'].astype(str)
