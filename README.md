@@ -338,8 +338,8 @@ item with the highest count. Ties are broken by the item that appears at the
 most recent date. Each date contributes one vote regardless of the underlying
 observation counts (`N_item`).
 
-The hover tooltip shows **majority share** — winning count ÷ number of
-selected dates with data for that cell.
+The hover tooltip shows **Date-win share** — winning count ÷ number of
+dates with data for that cell.
 
 ### Abs. Majority (M2)
 
@@ -351,6 +351,8 @@ Two-step logic:
 2. **Cross-date majority.** Count votes across all dates (VARIOUS is a valid vote value, just like any item). The value with the most votes wins and is displayed.
 
 A cell shows VARIOUS when the majority of dates had no single dominant item on that specific day — not just that no item won across the whole date range. Use this method when you want to surface cells with genuinely per-snapshot dominance and flag contested ones.
+
+The hover tooltip shows **Date-win share** — the fraction of dates that voted for the displayed value (item or VARIOUS). For a VARIOUS cell the tooltip also notes *(no per-date majority)* to clarify that the displayed value is the contested outcome, not a real item.
 
 VARIOUS cells are counted as their own "item" in the bottom marginal chart.
 
@@ -368,8 +370,8 @@ weight(item) = sum(N_item for this item) / sum(N_item for all items)
 ```
 
 The item with the highest total weight wins and is displayed. The hover
-tooltip shows the winning item's **weight** (0–1), which corresponds to its
-share of all observations for that cell over the selected period.
+tooltip shows **Weighted share** (0–1) — the winning item's share of all
+observations for that cell over the selected period.
 
 Weighted is the only method sensitive to how many raw observations back each
 date's entry — it surfaces items that appear rarely on any single date but
