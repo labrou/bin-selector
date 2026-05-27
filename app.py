@@ -39,6 +39,7 @@ Aggregation methods
                       item; winner = highest aggregate share.
 """
 
+import hashlib
 import io
 import json
 import re
@@ -242,8 +243,10 @@ def generate_data():
         'bin_segments': bin_segments,
         'bin_names':    np.array(BIN_NAMES),
         'dates':        dates,
+        'positions':    list(range(1, NUM_POSITIONS + 1)),
         'item_codes':   list(ITEMS),
         'item_colors':  list(COLORS[:N_MAX_USER_ITEMS]) + [OTHER_COLOR] * (len(ITEMS) - N_MAX_USER_ITEMS),
+        '_id':          'synthetic',
     }
 
 
@@ -308,12 +311,22 @@ def load_user_data(file_bytes: bytes, filename: str):
             df = df[df['date'].notna()]
     df['date'] = df['date'].dt.date
 
-    df['item']    = df['item'].astype(str)
-    df['bin_id']  = df['bin_id'].astype(str)
-    df['segment'] = df['segment'].astype(str)
+    df['item']     = df['item'].astype(str)
+    df['bin_id']   = df['bin_id'].astype(str)
+    df['segment']  = df['segment'].astype(str)
+    df['position'] = pd.to_numeric(df['position'], errors='coerce')
+    _bad_pos = df['position'].isna().sum()
+    if _bad_pos:
+        st.warning(f"{_bad_pos:,} row(s) had unparseable position values and will be dropped.")
+        df = df[df['position'].notna()]
+    df['position'] = df['position'].astype(int)
     # N_item is optional; default to 1 per row when absent or unparseable
     if 'N_item' in df.columns:
         df['N_item'] = pd.to_numeric(df['N_item'], errors='coerce').fillna(1).astype(np.int32)
+        _neg = (df['N_item'] < 0).sum()
+        if _neg:
+            st.warning(f"{_neg:,} row(s) had negative N_item values and were set to 0.")
+            df['N_item'] = df['N_item'].clip(lower=0)
     else:
         df['N_item'] = np.int32(1)
     df['bin_key'] = df['bin_id'] + ' · ' + df['segment']
@@ -325,7 +338,7 @@ def load_user_data(file_bytes: bytes, filename: str):
 
     bin_keys  = sorted(df['bin_key'].unique())
     dates     = sorted(df['date'].unique())
-    positions = sorted(df['position'].unique())
+    positions = sorted(df['position'].unique())   # numeric after coercion above
 
     n_bins  = len(bin_keys)
     n_dates = len(dates)
@@ -387,6 +400,17 @@ def load_user_data(file_bytes: bytes, filename: str):
         .loc[bin_keys, ['bin_rank', 'segment']]
     )
 
+    # Warn if bin_rank is inconsistent for any bin (should be bin-level metadata)
+    _rank_nunique = df.groupby('bin_key')['bin_rank'].nunique()
+    _bad_ranks = (_rank_nunique > 1).sum()
+    if _bad_ranks:
+        st.warning(
+            f"{_bad_ranks} bin(s) have inconsistent bin_rank values across rows; "
+            "the first value encountered is used."
+        )
+
+    _file_id = hashlib.md5(file_bytes[:8192]).hexdigest()[:10]
+
     return {
         'date_winner':    date_winner,
         'date_top_share': date_top_share,
@@ -399,7 +423,9 @@ def load_user_data(file_bytes: bytes, filename: str):
         'bin_segments': bin_meta['segment'].to_numpy().astype(str),
         'bin_names':    np.array(bin_keys),
         'dates':        list(dates),
+        'positions':    list(positions),
         'item_codes':   user_items,
+        '_id':          _file_id,
     }
 
 
@@ -966,7 +992,8 @@ if st.session_state.get('_segment_sig') != _segment_sig:
 # Reset date/rank/pos sliders when the dataset changes so stale values
 # from a previous dataset (e.g. synthetic dates) don't crash list.index().
 _dataset_sig = (
-    f"{data['dates'][0].isoformat()}__{data['dates'][-1].isoformat()}"
+    f"{data.get('_id', 'synthetic')}"
+    f"__{data['dates'][0].isoformat()}__{data['dates'][-1].isoformat()}"
     f"__{len(data['dates'])}"
     f"__{int(data['bin_ranks'].min())}__{int(data['bin_ranks'].max())}"
     f"__{data['date_winner'].shape[2]}"   # n_positions
@@ -1343,8 +1370,8 @@ st.markdown(
 st.divider()
 
 # ── Filtering ─────────────────────────────────────────────────────────────────
-segments_active     = selected_segments if selected_segments else available_segments
-in_segment          = np.isin(data['bin_segments'], segments_active)
+segments_active     = selected_segments   # empty list → no segment selected → zero bins
+in_segment          = np.isin(data['bin_segments'], segments_active) if segments_active else np.zeros(len(data['bin_segments']), dtype=bool)
 in_rank             = (data['bin_ranks'] >= rank_range[0]) & (data['bin_ranks'] <= rank_range[1])
 visible_mask        = in_segment & in_rank
 visible_bin_indices = np.where(visible_mask)[0]
@@ -1460,7 +1487,7 @@ total_width    = heatmap_width + 170
 total_height   = int(heatmap_height / 0.83) + 60
 
 # ── Display arrays ────────────────────────────────────────────────────────────
-positions_disp = np.array(pos_indices) + 1
+positions_disp = np.array(data['positions'])[pos_indices]
 ranks_disp     = data['bin_ranks'][ordered_bin_indices]
 segments_disp  = data['bin_segments'][ordered_bin_indices]
 bin_names_disp = data['bin_names'][ordered_bin_indices]
@@ -1867,14 +1894,12 @@ if drill_bin != _no_sel:
             mini_z    = drill_winner.T.astype(float)       # (n_pos, n_dates_sel)
             mini_text = drill_text.T
 
-            # For M2 the stored value is always the per-date plurality item's pct
-            # (which is < 50 % for VARIOUS cells), so label it accordingly.
-            if method == 'Weighted':
-                drill_share_label = "Pct"
-            elif method == 'Abs. Majority':
-                drill_share_label = "Plurality item pct"
+            # Drill-down is always per-date regardless of method (single-date M3 == M1).
+            # date_top_share = N_item[winner] / group_N for that specific date.
+            if method == 'Abs. Majority':
+                drill_share_label = "Plurality item pct"  # < 50 % for VARIOUS cells
             else:
-                drill_share_label = "Share"
+                drill_share_label = "Date share"  # same value for Majority and Weighted
             # Build share customdata for hover
             mini_share = drill_share.T   # (n_pos, n_dates_sel)
 

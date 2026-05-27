@@ -88,7 +88,7 @@ for the session.
 
 **Duplicate rows are aggregated automatically.** If the same `(bin_id, date, position, bin_rank, segment, item)` key appears on multiple rows, their `N_item` values are summed before any processing. This means you can upload raw one-row-per-observation data (omitting `N_item`, so it defaults to 1) and the app will count correctly. Pre-aggregating to one row per key reduces file size but is not required.
 
-A single `(bin_id, date, position, bin_rank, segment)` key can have **up to 10 distinct item rows** after aggregation; any beyond that are dropped.
+There is no limit on how many distinct items a cell can have. All items are kept; only the top 10 by total frequency receive a distinct colour — the rest are shown in gray.
 
 **Multiple segment values per bin_id.** If the same `bin_id` appears with
 more than one `segment` value, each `(bin_id, segment)` pair is treated as a
@@ -279,7 +279,7 @@ The sidebar (arrow at top-left) contains four sections:
 - **Title font** — four options: *Fraunces* (italic serif, default), *Playfair Display*, *DM Serif Display*, *IBM Plex Sans*.
 - **Background color** — color picker; updates the page, sidebar, chart backgrounds, and empty-cell color simultaneously.
 
-**Share this view** · Copies the current URL (with all filters, sort, and date range encoded) to the clipboard.
+**Share this view** · Displays the current URL (with all filters, sort, and date range encoded) for copying.
 
 ---
 
@@ -388,10 +388,11 @@ The app lives in a single file `app.py`, organized into five sections.
 Fixed palette, synthetic bin names, and limits:
 
 ```python
-N_MAX_ITEMS      = 11   # total colour slots including gray
+N_MAX_ITEMS      = 12   # total colour slots (10 distinct + VARIOUS + _OTHER_)
 N_MAX_USER_ITEMS = 10   # max user-selectable distinctly-coloured items
-OTHER_COLOR      = '#9CA3AF'  # gray for items beyond the colour limit
-COLORS           = ['#B91C1C', '#1E3A8A', ...]  # 11 qualitative colours
+OTHER_COLOR      = '#9CA3AF'   # neutral gray for items beyond the colour limit
+VARIOUS_COLOR    = '#C2410C'   # burnt-orange for M2 VARIOUS cells
+COLORS           = ['#B91C1C', '#1E3A8A', ...]  # 12 qualitative colours
 VARIOUS_IDX      = n_items   # sentinel item index used for M2 VARIOUS cells
 ```
 
@@ -478,7 +479,7 @@ item_colors = [
 
 The colorscale spans `[-1, n_items]`: slot 0 maps value `-1` (no data) to
 the panel background; slots 1..n_items map each item index to its color
-(distinct or gray); slot `n_items` maps `VARIOUS_IDX` to gray (M2 VARIOUS).
+(distinct or gray); slot `n_items` maps `VARIOUS_IDX` to burnt-orange (`#C2410C`).
 
 ---
 
