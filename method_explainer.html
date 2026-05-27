@@ -379,39 +379,74 @@
     <h2>Abs. Majority</h2>
   </div>
   <p class="method-desc">
-    All observations across the date range are pooled. If one item holds
-    <strong>≥ 50 %</strong> of those pooled observations, it wins. If no item
-    clears that bar, the cell shows <strong style="color:var(--various)">VARIOUS</strong>
-    — a signal that no single item dominates.
+    Identical to Majority (M1) but with an extra check on each date: the
+    per-date plurality winner only wins that day if it holds
+    <strong>≥ 50 %</strong> of <em>that day's</em> observations.
+    If it falls short, that day's value is <strong style="color:var(--various)">VARIOUS</strong>.
+    Cross-date aggregation is then the same majority count as M1 — VARIOUS
+    simply participates as one of the possible vote values.
   </p>
   <div class="rule-box">
-    <span class="hl">Aggregate</span> — pool all N_item across every date in the range<br>
-    <span class="hl">Check</span> — winner = item where sum(N_item) / sum(group_N) ≥ 0.50<br>
-    <span class="hl">Fallback</span> — no item qualifies → display <span style="color:var(--various)">VARIOUS</span>
+    <span class="hl">Per date</span> — winner = argmax(N_item); if its pct ≥ 0.50 → that item; else → VARIOUS<br>
+    <span class="hl">Cross-date</span> — count per-date values; winner = most frequent value (same as M1)<br>
+    <span class="hl">Tiebreak</span> — prefer the most recent date's value
   </div>
   <p class="use-when">
-    <strong>Use when</strong> — you want to surface only <em>clear majorities</em> and make
-    ambiguous cells visually explicit. VARIOUS tells you where the data is genuinely mixed.
+    <strong>Use when</strong> — you want to surface <em>clear per-snapshot majorities</em>
+    and flag ambiguous dates explicitly. Unlike M1, a date where observations are split
+    50/30/20 % registers as contested rather than silently assigning the 50 % item.
   </p>
 
   <div class="obs-wrap">
-    <p class="obs-caption">Applying M2 to the example</p>
+    <p class="obs-caption">Applying M2 to the example — per-date threshold check</p>
     <table class="obs">
       <thead>
-        <tr><th>Item</th><th>Total N_item</th><th>Share of 35 obs.</th><th>≥ 50 %?</th></tr>
+        <tr>
+          <th>Date</th>
+          <th>Per-date winner</th>
+          <th>Pct on that date</th>
+          <th>≥ 50 %?</th>
+          <th>M2 value</th>
+        </tr>
       </thead>
       <tbody>
         <tr>
-          <td class="item-apx">APX</td><td class="item-apx">14</td>
-          <td>40 %</td><td>✗</td>
+          <td>May 1</td>
+          <td style="color:var(--brt)">BRT</td>
+          <td>9/10 = 90 %</td><td>✓</td>
+          <td style="color:var(--brt)">BRT</td>
         </tr>
         <tr>
-          <td class="item-brt">BRT</td><td class="item-brt">21</td>
-          <td>60 %</td><td>✓</td>
+          <td>May 8</td>
+          <td style="color:var(--brt)">BRT</td>
+          <td>9/10 = 90 %</td><td>✓</td>
+          <td style="color:var(--brt)">BRT</td>
         </tr>
         <tr>
-          <td class="item-cfd">CFD</td><td class="item-cfd">0</td>
-          <td>0 %</td><td>✗</td>
+          <td>May 15</td>
+          <td style="color:var(--apx)">APX</td>
+          <td>4/5 = 80 %</td><td>✓</td>
+          <td style="color:var(--apx)">APX</td>
+        </tr>
+        <tr>
+          <td>May 22</td>
+          <td style="color:var(--apx)">APX</td>
+          <td>4/5 = 80 %</td><td>✓</td>
+          <td style="color:var(--apx)">APX</td>
+        </tr>
+        <tr>
+          <td>May 29</td>
+          <td style="color:var(--apx)">APX</td>
+          <td>4/5 = 80 %</td><td>✓</td>
+          <td style="color:var(--apx)">APX</td>
+        </tr>
+        <tr class="total-row">
+          <td>Cross-date count</td>
+          <td colspan="4">
+            <span style="color:var(--apx)">APX: 3</span> &nbsp;|&nbsp;
+            <span style="color:var(--brt)">BRT: 2</span>
+            → same result as M1 in this example (all dates had clear ≥ 50 % winners)
+          </td>
         </tr>
       </tbody>
     </table>
@@ -420,20 +455,22 @@
   <div class="result-wrap">
     <p class="obs-caption" style="margin-bottom:10px;">Result for this cell</p>
     <div class="result-row">
-      <div class="res-cell" style="background:var(--brt)">BRT</div>
+      <div class="res-cell" style="background:var(--apx)">APX</div>
       <div class="res-note">
-        <strong>BRT</strong> — holds 60 % of pooled observations (≥ 50 % threshold).<br>
-        M1 said APX; M2 corrects this by counting <em>raw observations</em>, not date wins.
+        <strong>APX</strong> — won 3 of 5 dates with ≥ 50 % on each winning day.<br>
+        In this particular example M1 = M2.  They diverge when some dates have
+        no clear per-date majority (those dates vote VARIOUS instead).
       </div>
     </div>
   </div>
 
   <div class="callout">
     <p class="callout-head">When VARIOUS appears</p>
-    If the data were split 40 % APX · 35 % BRT · 25 % CFD, no item would cross 50 %.
-    The cell shows <strong style="color:var(--various)">VARIOUS</strong> with its own distinct
-    colour — meaning "the slot is genuinely contested; no single item dominates."
-    The hover tooltip still shows the top item's aggregate share for context.
+    If a date had observations split 40 % APX · 35 % BRT · 25 % CFD,
+    APX wins that date under M1 (plurality) but that date votes
+    <strong style="color:var(--various)">VARIOUS</strong> under M2 (below the 50 % bar).
+    If enough dates vote VARIOUS, the final cell shows VARIOUS with its own distinct colour.
+    The hover shows the fraction of dates that were VARIOUS.
   </div>
 </div>
 
@@ -620,13 +657,14 @@
   <p style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);
      margin-top:20px;max-width:720px;line-height:1.7;">
     <strong style="color:var(--ink)">Beta · Position 2:</strong>
-    M1 → <span style="color:var(--apx)">APX</span> (won 3 of 5 dates) ·
-    M2 → <span style="color:var(--various)">VARIOUS</span> (no item ≥ 50 %) ·
-    M3 → <span style="color:var(--brt)">BRT</span> (60 % of pooled obs.)
+    M1 → <span style="color:var(--apx)">APX</span> (won 3 of 5 dates, plurality) ·
+    M2 → <span style="color:var(--various)">VARIOUS</span> (most dates had no per-date ≥ 50 % winner) ·
+    M3 → <span style="color:var(--brt)">BRT</span> (60 % aggregate share)
     <br>
     <strong style="color:var(--ink)">Gamma · Position 2:</strong>
-    M1 → <span style="color:var(--apx)">APX</span> (date wins) ·
-    M2 + M3 → <span style="color:var(--brt)">BRT</span> (60 % pooled share ≥ 50 %)
+    M1 → <span style="color:var(--apx)">APX</span> (date-win majority) ·
+    M2 → <span style="color:var(--brt)">BRT</span> (BRT had ≥ 50 % on most dates) ·
+    M3 → <span style="color:var(--brt)">BRT</span> (60 % aggregate share)
   </p>
 </div>
 

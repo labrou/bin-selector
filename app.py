@@ -362,27 +362,70 @@ def compute_plurality(counts_slice, n_items):
 def compute_abs_majority(counts_slice, n_items, various_idx):
     """METHOD_2 — Abs. Majority.
 
-    Aggregate all observations across the date range.  If any item holds
-    ≥ 50 % of the total, it wins.  Otherwise the cell shows VARIOUS.
+    Identical to M1 but with a per-date threshold:
+      - Per date: plurality winner wins only if its pct (N_item/group_N) >= 0.50.
+                  If pct < 0.50, that date's value is VARIOUS.
+      - Cross-date: majority count of per-date values (VARIOUS counts as its own
+                  vote-able value), same tiebreak logic as M1.
 
     counts_slice  : (n_bins, n_dates, n_pos, n_items)
     various_idx   : integer sentinel for VARIOUS cells (= n_items)
-    Returns       : winner (n_bins, n_pos) int16, share (n_bins, n_pos) float
-                    share = aggregate share of the leading item (even if < 50 %).
+    Returns       : winner (n_bins, n_pos) int16,
+                    share  (n_bins, n_pos) float = fraction of dates won by winner.
+                    For VARIOUS cells: share = fraction of dates that were VARIOUS.
     """
-    total       = counts_slice.sum(axis=1)        # (n_bins, n_pos, n_items)
-    group_total = total.sum(axis=-1)              # (n_bins, n_pos)
+    n_bins, n_dates, n_pos, _ = counts_slice.shape
+    group_n  = counts_slice.sum(axis=-1)          # (n_bins, n_dates, n_pos)
+    has_data = group_n > 0
 
-    max_counts  = total.max(axis=-1)
-    top_item    = total.argmax(axis=-1).astype(np.int16)
+    # Per-date plurality winner (argmax; stable — lower index wins ties)
+    date_argmax = counts_slice.argmax(axis=-1).astype(np.int16)   # (B, D, P)
 
-    agg_share   = np.where(group_total > 0, max_counts / np.maximum(group_total, 1), 0.0)
-    has_majority = agg_share >= 0.5
+    # Per-date pct of the plurality winner
+    b_ix = np.arange(n_bins)[:, None, None]
+    d_ix = np.arange(n_dates)[None, :, None]
+    p_ix = np.arange(n_pos)[None, None, :]
+    safe_am    = np.clip(date_argmax, 0, n_items - 1).astype(np.intp)
+    top_counts = counts_slice[b_ix, d_ix, p_ix, safe_am]          # (B, D, P)
+    top_pct    = np.where(has_data,
+                          top_counts / np.maximum(group_n, 1),
+                          0.0)                                     # (B, D, P)
 
-    winner  = np.where(has_majority, top_item, np.int16(various_idx)).astype(np.int16)
-    no_data = group_total == 0
+    # Per-date value: item if pct >= 0.5, else VARIOUS; -1 if no data
+    date_value = np.where(
+        ~has_data,          np.int16(-1),
+        np.where(top_pct >= 0.5, date_argmax, np.int16(various_idx))
+    ).astype(np.int16)
+
+    if n_dates == 1:
+        w = date_value[:, 0, :]
+        s = top_pct[:, 0, :]          # show the top item's pct even for VARIOUS
+        return w, s
+
+    # Cross-date win count — n_items+1 slots: items 0..n_items-1 + VARIOUS at n_items
+    n_vals    = n_items + 1
+    win_counts = np.zeros((n_bins, n_pos, n_vals), dtype=np.int32)
+    bd, dd, pd_ = np.where(has_data)
+    vals_valid  = date_value[bd, dd, pd_].astype(np.intp)
+    np.add.at(win_counts, (bd, pd_, vals_valid), 1)
+
+    max_wins = win_counts.max(axis=-1)
+    winner   = win_counts.argmax(axis=-1).astype(np.int16)
+
+    # Tiebreak: prefer most-recent-date value when tied
+    recent_has = has_data[:, -1, :]
+    recent_val = date_value[:, -1, :]
+    b2, p2     = np.meshgrid(np.arange(n_bins), np.arange(n_pos), indexing='ij')
+    safe_rv    = np.clip(recent_val, 0, n_vals - 1)
+    recent_wins = win_counts[b2, p2, safe_rv]
+    winner = np.where(recent_has & (recent_wins == max_wins),
+                      recent_val, winner).astype(np.int16)
+
+    n_data_dates = has_data.sum(axis=1)
+    no_data      = n_data_dates == 0
     winner[no_data] = -1
-    return winner, agg_share
+    share = np.where(no_data, 0.0, max_wins / np.maximum(n_data_dates, 1))
+    return winner, share
 
 
 def compute_weighted(counts_slice, n_items):
@@ -873,7 +916,7 @@ across visible {bin_term}s at each position (interpretation varies by method).
 | Method | What it does |
 |---|---|
 | **Majority** | For each date, the plurality winner (most observations); across dates, the item that won most dates is shown. |
-| **Abs. Majority** | Across all observations in the date range, if one item holds ≥ 50 % it wins; otherwise the cell shows **VARIOUS**. |
+| **Abs. Majority** | Per date: the plurality winner wins only if it holds ≥ 50 % of that day's observations; otherwise that day's value is **VARIOUS**. Cross-date aggregation is identical to Majority. |
 | **Weighted** | Pools all observations across the date range; item share = total N\_item ÷ total group\_N. Winner = highest share. |
 
 [Visual guide to all methods →]({METHOD_GUIDE_URL})
@@ -1305,7 +1348,7 @@ if multi_date:
     d1 = date_range[1].strftime("%b %d, %Y")
     method_desc = {
         'Majority':      f"Each cell = {item_term} that won the most individual snapshots (per-date plurality).",
-        'Abs. Majority': f"Each cell = {item_term} holding ≥ 50 % of pooled observations; otherwise <b>VARIOUS</b>.",
+        'Abs. Majority': f"Each cell = per-date plurality winner if it holds ≥ 50 % of that day's observations; otherwise <b>VARIOUS</b>. Cross-date: majority count of those per-date values.",
         'Weighted':      f"Each cell = {item_term} with the highest aggregate share across all observations in the window.",
     }[method]
     mode_sentence = (
