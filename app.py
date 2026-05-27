@@ -1196,8 +1196,10 @@ sort_options = ["Index", "Similarity", f"{bin_term.capitalize()} Rank", "Top-ran
 if 0 < n_sel < n_pill_items:
     sort_options.append("Selected Share")
 
-if st.session_state.get('sort_radio') not in sort_options:
-    st.session_state['sort_radio'] = 'Similarity'
+# Pop-before-render: avoids default-vs-session-state conflict on st.radio.
+_sort = st.session_state.pop('sort_radio', None)
+if _sort not in sort_options:
+    _sort = 'Similarity'
 
 _sort_lbl_col, _sort_q_col, _ = st.columns([1.4, 1.0, 7.6], gap="small")
 with _sort_lbl_col:
@@ -1214,7 +1216,7 @@ with _sort_q_col:
 sort_mode = st.radio(
     f"Sort {bin_term}s by",
     sort_options,
-    index=sort_options.index(st.session_state.get('sort_radio', 'Similarity')),
+    index=sort_options.index(_sort),
     horizontal=True,
     key="sort_radio",
     label_visibility="collapsed",
