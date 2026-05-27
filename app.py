@@ -1051,10 +1051,10 @@ a wider range triggers the selected Method's aggregation logic.
 | Mode | What it does |
 |---|---|
 | **Index** | Original data order |
-| **Similarity** | Groups {bin_term}s that share the same {it}s at positions 1–4 (default) |
+| **Similarity** | Groups {bin_term}s that share the same {item_term}s at positions 1–4 (default) |
 | **{bin_term.capitalize()} Rank** | Ascending by global rank |
-| **Top-rank** | Groups {bin_term}s sharing the same {it} at position 1; ties resolved by position 2, 3, … |
-| **Selected Share** | Ranks {bin_term}s by how many visible positions are held by selected {it}s |
+| **Top-rank** | Groups {bin_term}s sharing the same {item_term} at position 1; ties resolved by position 2, 3, … |
+| **Selected Share** | Ranks {bin_term}s by how many visible positions are held by selected {item_term}s |
 
 [Visual guide to all sort modes →]({SORT_GUIDE_URL})
 
@@ -1085,7 +1085,7 @@ Open the **sidebar** and upload a pre-aggregated CSV with these columns:
 | `pct` | N\_item / group\_N |
 
 One row per unique [bin\_id, date, position, bin\_rank, segment, **item**].
-""".replace('{it}', item_term))
+""")
 
 
 @st.dialog("Sort modes — visual guide", width="large")
