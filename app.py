@@ -3,7 +3,7 @@ Ranked Placement Atlas - Streamlit version
 ==========================================
 
 Run:
-    pip install streamlit>=1.40 plotly numpy pandas kaleido
+    pip install streamlit>=1.40 plotly numpy pandas
     streamlit run app.py
 
 Features:
@@ -115,7 +115,7 @@ def sort_descriptions(bt, it):
 
 
 # ============ DATA GENERATION ============
-@st.cache_data
+@st.cache_resource          # returns by reference — no pickle/unpickle copy overhead
 def generate_data():
     """Return synthetic data in compact form — no permanent dense counts cube.
 
@@ -270,7 +270,7 @@ def discover_items(file_bytes: bytes, filename: str):
         return [], {}
 
 
-@st.cache_data
+@st.cache_resource          # returns by reference — avoids copying large numpy arrays each rerun
 def load_user_data(file_bytes: bytes, filename: str):
     """Parse a pre-aggregated CSV into compact date_winner/date_top_share arrays
     and sparse long arrays for the Weighted method.
@@ -612,6 +612,19 @@ def compute_weighted(data, visible_bin_indices, date_start_idx, date_end_idx,
     weights     = (total_N / np.maximum(group_total[:, :, None], np.float32(1))).astype(np.float32)
     winner      = weights.argmax(axis=-1).astype(np.int32)
     max_wt      = weights.max(axis=-1).astype(np.float32)
+
+    # Tiebreak: when two items share the same max weight, prefer the most recent
+    # date's winner — consistent with M1 and M2 behaviour.
+    recent_dw = data['date_winner'][visible_bin_indices, date_end_idx, :][:, pos_indices]
+    # recent_dw shape: (n_vis, n_pos_sel)
+    safe_recent = np.clip(recent_dw, 0, n_items - 1)
+    b_range, p_range = np.indices((n_vis, n_pos_sel))
+    # A cell is a "tie" if the recent winner has the same weight as the argmax winner
+    recent_tied = (
+        (recent_dw >= 0)                                        # recent date has data
+        & (weights[b_range, p_range, safe_recent] == max_wt)   # its weight equals max
+    )
+    winner = np.where(recent_tied, recent_dw, winner).astype(np.int32)
 
     no_data = group_total == 0
     winner[no_data] = -1
@@ -1059,8 +1072,7 @@ st.html(
     try{{
       var gs=document.querySelectorAll('[data-baseweb="button-group"]');
       for(var i=0;i<gs.length;i++){{
-        var bs=gs[i].querySelectorAll('button');
-        var realBs=Array.from(bs).filter(function(b){{return !b.getAttribute('data-gray-pill');}});
+        var realBs=Array.from(gs[i].querySelectorAll('button'));
         if(realBs.length!==N) continue;
         var texts=realBs.map(function(b){{return b.textContent.trim();}});
         // Skip segment and method pill groups
@@ -2001,7 +2013,7 @@ if drill_bin != _no_sel:
                 'date':     np.repeat([d.isoformat() for d in drill_dates], n_dp),
                 'position': np.tile(positions_disp.astype(int), n_di),
                 'item':     drill_text.ravel(),
-                'share':    np.round(drill_share.ravel(), 4),
+                'date_share': np.round(drill_share.ravel(), 4),
             }).to_csv(index=False).encode()
             st.download_button(
                 f"Download {drill_bin} time series CSV",
