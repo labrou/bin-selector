@@ -1708,7 +1708,14 @@ if drill_bin != _no_sel:
             mini_z    = drill_winner.T.astype(float)       # (n_pos, n_dates_sel)
             mini_text = drill_text.T
 
-            drill_share_label = "Pct" if method == 'Weighted' else "Share"
+            # For M2 the stored value is always the per-date plurality item's pct
+            # (which is < 50 % for VARIOUS cells), so label it accordingly.
+            if method == 'Weighted':
+                drill_share_label = "Pct"
+            elif method == 'Abs. Majority':
+                drill_share_label = "Plurality item pct"
+            else:
+                drill_share_label = "Share"
             # Build share customdata for hover
             mini_share = drill_share.T   # (n_pos, n_dates_sel)
 
