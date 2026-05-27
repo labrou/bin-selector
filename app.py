@@ -31,8 +31,10 @@ Aggregation methods
 -------------------
   Majority      (M1): per-date plurality winner (most observations on that date),
                       then cross-date majority count; random tiebreak.
-  Abs. Majority (M2): item with ≥50 % of aggregate observations wins; otherwise
-                      the cell shows "VARIOUS".
+  Abs. Majority (M2): per-date: plurality winner keeps its vote only if it holds
+                      ≥50 % of that date's observations; otherwise that date votes
+                      "VARIOUS". Cross-date: majority count of those per-date votes
+                      (VARIOUS is a valid vote value).
   Weighted      (M3): sum(N_item across dates) / sum(group_N across dates) per
                       item; winner = highest aggregate share.
 """

@@ -343,12 +343,14 @@ selected dates with data for that cell.
 
 ### Abs. Majority (M2)
 
-*The item that appears in strictly ≥ 50% of selected dates — otherwise VARIOUS.*
+*Per-date threshold: a date's winner only counts if it held ≥ 50% of that day's observations — otherwise that date votes VARIOUS.*
 
-Same vote-counting as M1, but the winner is only accepted if its share
-reaches 50%. If no item clears that threshold, the cell is labeled
-**VARIOUS** and rendered in gray. Use this method when you want to highlight
-cells with clear, uncontested dominance.
+Two-step logic:
+
+1. **Per-date check.** For each date in the range, take the plurality winner and its share of observations on that date. If the share ≥ 50%, that date casts a vote for the item. If it falls short, that date votes **VARIOUS** instead.
+2. **Cross-date majority.** Count votes across all dates (VARIOUS is a valid vote value, just like any item). The value with the most votes wins and is displayed.
+
+A cell shows VARIOUS when the majority of dates had no single dominant item on that specific day — not just that no item won across the whole date range. Use this method when you want to surface cells with genuinely per-snapshot dominance and flag contested ones.
 
 VARIOUS cells are counted as their own "item" in the bottom marginal chart.
 
