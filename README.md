@@ -6,7 +6,7 @@ An interactive Streamlit visualization for exploring how a categorical
 vocabulary (items) is distributed across ordered slots (positions) over many
 groupings (bins), optionally aggregated across time.
 
-The built-in synthetic dataset is **100 bins × 50 positions × 10 items × 52
+The built-in synthetic dataset is **100 bins × 50 positions × 13 items × 52
 snapshots**, but the app is designed to work with any CSV you upload.
 
 ---
@@ -40,7 +40,7 @@ with real data. Use the **Labels** panel in the sidebar to rename "bin" and
 4. [The visualization](#the-visualization)
 5. [Controls reference](#controls-reference)
 6. [Sort modes](#sort-modes)
-7. [Majority metric](#majority-metric)
+7. [Aggregation methods](#aggregation-methods)
 8. [Code structure](#code-structure)
 9. [Dependencies](#dependencies)
 
@@ -77,35 +77,36 @@ for the session.
 | Column | Required | Notes |
 |---|---|---|
 | `bin_id` | ✓ | String identifier for the bin; used as the display name |
-| `date` | ✓ | Any format parseable by `pd.to_datetime`; daily, weekly, or any frequency |
+| `date` | ✓ | Format **M/D/YYYY** (month and day may be single-digit; year is 4 digits). Also accepts any format parseable by `pd.to_datetime`. |
 | `position` | ✓ | Integer rank within the bin (1-based or 0-based; both work) |
 | `item` | ✓ | Any string label — no limit on unique values |
 | `bin_rank` | ✓ | Global rank of the bin (integer; any range, including 0-based) |
 | `segment` | ✓ | Any string grouping / filter attribute; not restricted to a fixed set. Rename the display label via **Labels → Bin grouping attribute**. |
+| `N_item` | ✓ | Count of observations of this item for this `(bin_id, date, position, bin_rank, segment, item)` combination |
+| `group_N` | ✓ | Total observations across **all** items for this `(bin_id, date, position, bin_rank, segment)` combination (i.e. `sum(N_item)` over items in the group) |
+| `pct` | ✓ | `N_item / group_N` — the item's share of observations for that cell |
 
-**Multiple segment values per bin_id.** If the same `bin_id` appears with more than one
-`segment` value, each `(bin_id, segment)` pair is treated as a distinct display unit.
-The heatmap label becomes `"bin_id · segment"`.
+**Why pre-aggregate?** Rather than uploading every raw observation row, the
+app expects one row per unique `(bin_id, date, position, bin_rank, segment,
+item)` combination with the counts already rolled up. This reduces file size
+and upload time. A single `(bin_id, date, position, bin_rank, segment)` key
+can have **up to 10 item rows**; any beyond that are dropped.
 
-**Duplicate rows.** Multiple rows for the same `(bin_id, segment, date,
-position)` key are treated as repeated measurements. The most frequent item
-wins; ties are broken by random choice. A sidebar warning shows how many keys
-were affected. After deduplication each `(bin, date, position)` cell holds
-exactly **one** item — raw row counts do not carry forward. When you then
-aggregate across a date range, each date contributes one vote per cell
-regardless of how many raw rows backed it.
+**Multiple segment values per bin_id.** If the same `bin_id` appears with
+more than one `segment` value, each `(bin_id, segment)` pair is treated as a
+distinct display unit. The heatmap label becomes `"bin_id · segment"`.
 
-**Missing positions.** Bins do not need to have data for every position. Cells
-where a bin has no data for a given position are shown as empty (background
-color) with a `—` hover label.
+**Missing positions.** Bins do not need to have data for every position.
+Cells where a bin has no data for a given position are shown as empty
+(background color) with a `—` hover label.
 
 ### Item colours
 
-All items are kept and their real names are always shown. Up to **11** items
+All items are kept and their real names are always shown. Up to **10** items
 can be given a distinct colour; everything beyond that renders in gray but
 still displays its real label on hover and in cell text. When your data has
-more than 11 unique item values, a multiselect in the sidebar lets you choose
-which items get distinct colours (defaulting to the top 11 by frequency).
+more than 10 unique item values, a multiselect in the sidebar lets you choose
+which items get distinct colours (defaulting to the top 10 by frequency).
 
 ---
 
@@ -116,18 +117,28 @@ which items get distinct colours (defaulting to the top 11 by frequency).
 Both `generate_data()` (synthetic) and `load_user_data()` (uploaded CSV)
 return a dictionary with the following keys:
 
-| Key           | Type          | Shape                    | Description |
-|---------------|---------------|--------------------------|-------------|
-| `items`       | `np.int16`    | (n_bins, n_dates, n_pos) | Item index at each (bin, date, position). `-1` means no data for that cell. |
-| `bin_ranks`    | `np.int64`    | (n_bins,)                | Global rank per bin. |
-| `bin_segments` | `np.str_`     | (n_bins,)                | Segment label per bin (the bin grouping attribute). |
-| `bin_names`   | `np.str_`     | (n_bins,)                | Display name per bin (used on y-axis). |
-| `dates`       | `list[date]`  | n_dates entries          | Date stamps from oldest to most recent. |
-| `item_codes`  | `list[str]`   | n_items entries          | All item labels, frequency-ordered for uploaded data. |
+| Key               | Type         | Shape / size                    | Description |
+|-------------------|--------------|---------------------------------|-------------|
+| `date_winner`     | `np.int16`   | `(n_bins, n_dates, n_pos)`      | Per-date plurality winner item index for each cell. `-1` = no data. |
+| `date_top_share`  | `np.float32` | `(n_bins, n_dates, n_pos)`      | Plurality winner's share of observations for that cell (0–1). |
+| `wt_bin_idx`      | `np.int32`   | `(n_nonzero,)`                  | Bin index for each non-zero `(bin, date, pos, item)` observation (sparse long format). |
+| `wt_date_idx`     | `np.int32`   | `(n_nonzero,)`                  | Date index — parallel to `wt_bin_idx`. |
+| `wt_pos_idx`      | `np.int32`   | `(n_nonzero,)`                  | Position index — parallel to `wt_bin_idx`. |
+| `wt_item_idx`     | `np.int16`   | `(n_nonzero,)`                  | Item index — parallel to `wt_bin_idx`. |
+| `wt_N_item`       | `np.int32`   | `(n_nonzero,)`                  | Observation count for this `(bin, date, pos, item)` entry. |
+| `bin_ranks`       | `np.int64`   | `(n_bins,)`                     | Global rank per bin. |
+| `bin_segments`    | `np.str_`    | `(n_bins,)`                     | Segment label per bin (the bin grouping attribute). |
+| `bin_names`       | `np.str_`    | `(n_bins,)`                     | Display name per bin (used on y-axis). |
+| `dates`           | `list[date]` | `n_dates` entries               | Date stamps from oldest to most recent. |
+| `item_codes`      | `list[str]`  | `n_items` entries               | All item labels, frequency-ordered for uploaded data. |
+| `item_colors`     | `list[str]`  | `n_items` entries               | Hex colour per item (distinct for top-10; gray for the rest). Synthetic only; not present in user data dict. |
 
-`int16` is used (rather than `int8`) to support datasets with more than 127
-unique item values. Item colours are not stored in the data dictionary —
-they are computed in the app from the user's colour-selection multiselect.
+**Design rationale.** `date_winner` / `date_top_share` are compact `(B, D, P)`
+arrays — pre-computing the per-date plurality winner at load time means M1
+and M2 aggregations require no per-item counting at interaction time, just
+`np.bincount` over a flat int16 array. The sparse `wt_*` long arrays support
+the Weighted aggregation (M3) without materialising a full 4D `(B, D, P, I)`
+cube, which would be 15–40× larger in memory.
 
 ### Synthetic data generation
 
@@ -144,6 +155,10 @@ visualization:
    producing gradual evolution.
 5. **Regime change.** ~20% of bins undergo a one-time archetype switch between
    weeks 15 and 37, producing visible breaks in the time series.
+6. **Multiple observations per cell.** Each `(bin, date, position)` cell is
+   backed by 1–10 sampled observations, giving each of the three aggregation
+   methods distinct behaviour. Some cells have clear majorities (>50%), others
+   are contested; a few positions always have single-item dominance.
 
 Reproducibility is guaranteed by fixed seed `42`.
 
@@ -157,22 +172,25 @@ A Plotly `Heatmap` trace where:
 
 - **rows** are bins, labeled by name, ordered by the selected sort mode.
 - **columns** are positions (position 1 at left).
-- **cell color** encodes the item at that (bin, position) — or empty
-  (background) if the bin has no data for that position.
-- When multiple dates are selected, each cell shows the **most frequent item**
-  across those dates, with ties broken by recency.
-- **Hover** shows bin name, rank, region, position, item label, and majority
-  share.
+- **cell color** encodes the item at that (bin, position) under the chosen
+  [aggregation method](#aggregation-methods).
+- When multiple dates are selected, each cell shows the aggregated item per
+  the selected method (plurality winner, absolute majority, or weighted).
+- **Hover** shows bin name, rank, region, position, item label, and the
+  winning share or weight.
 
 Items with a distinct colour are shown in that colour. Items beyond the colour
 limit are shown in gray; their real label is still visible on hover and as the
 cell text. Non-selected items (via the items pills) are dimmed by blending 88%
 toward the background — except gray items, which are never dimmed further.
 
+The cell labeled **VARIOUS** (Abs. Majority only) indicates that no single
+item reached 50% share across the selected date range for that cell.
+
 ### Bottom marginal
 
 Stacked bar traces (one per item) sharing the x-axis with the heatmap. Each
-bar shows the proportion of visible bins whose majority item at that position
+bar shows the proportion of visible bins whose aggregated item at that position
 is the given item. Recomputes from the current filter state on every
 interaction.
 
@@ -190,18 +208,21 @@ attribute. Default: all selected. Filtering hides bins whose grouping value is
 not selected. Rename this attribute via **Labels → Bin grouping attribute**.
 **all** / **none** buttons below the pills select or clear all.
 
-**Items** · Toggleable pills for the distinctly-coloured items (up to 11).
+**Items** · Toggleable pills for the distinctly-coloured items (up to 10).
 Gray items are always visible in the heatmap but are not shown as pills.
 Selection controls *highlighting*, not filtering — non-selected items are
 dimmed; gray items are unaffected. **all** / **none** buttons below the
 pills reset or clear the selection.
+
+**Method** · Three pills selecting the aggregation method applied when multiple
+dates are in the date range. See [Aggregation methods](#aggregation-methods).
 
 ### Row 2 — Ranges
 
 **Date** · Dual-handle `select_slider` over all dates in the data.
 Default: most recent 13 snapshots. When the range covers a single date,
 each cell is that date's value. For multiple dates, the
-[majority metric](#majority-metric) applies.
+[aggregation method](#aggregation-methods) applies.
 
 **Bin rank range** · Dual-handle slider over the actual rank range in the
 data (min to max; 0-based ranks are supported). Bins outside the range are
@@ -299,23 +320,58 @@ Responds to the position range filter.
 
 ---
 
-## Majority metric
+## Aggregation methods
 
-When multiple dates are selected, `compute_majority(items_subset, n_items)`
-returns:
+When a date range spans multiple snapshots, each `(bin, position)` cell must
+be resolved to a single item. Three methods are available, selectable via the
+**Method** pills above the heatmap.
 
-1. For each `(bin, position)` cell, count occurrences of each item across
-   the selected dates (cells with no data, value `-1`, are ignored).
-   **Each date contributes one vote** — the single item stored for that cell
-   after upload-time deduplication. Raw row counts from the source CSV play
-   no role here.
-2. Take the item with the maximum count.
-3. Tiebreak: prefer the item that appeared in the **most recent** date.
-4. If no item ever appeared (all dates have no data for that cell), return
-   `-1` (rendered as empty).
+**Visual guide with worked examples:** [method_explainer.html](https://labrou.github.io/bin-selector/method_explainer.html)
 
-Each cell also produces a *majority share* — the winning item's count divided
-by the number of selected dates — surfaced in the hover tooltip.
+### Majority (M1)
+
+*The item that appears most often across the selected dates.*
+
+For each `(bin, position)` cell, count appearances of each item across the
+selected date range (dates where the cell has no data are skipped). Take the
+item with the highest count. Ties are broken by the item that appears at the
+most recent date. Each date contributes one vote regardless of the underlying
+observation counts (`N_item`).
+
+The hover tooltip shows **majority share** — winning count ÷ number of
+selected dates with data for that cell.
+
+### Abs. Majority (M2)
+
+*The item that appears in strictly ≥ 50% of selected dates — otherwise VARIOUS.*
+
+Same vote-counting as M1, but the winner is only accepted if its share
+reaches 50%. If no item clears that threshold, the cell is labeled
+**VARIOUS** and rendered in gray. Use this method when you want to highlight
+cells with clear, uncontested dominance.
+
+VARIOUS cells are counted as their own "item" in the bottom marginal chart.
+
+### Weighted (M3)
+
+*Items weighted by observation counts, aggregated over the date range.*
+
+Rather than giving each date a single vote, this method uses the raw
+`N_item` counts from the uploaded data (or the synthetic sampling counts).
+For each `(bin, position)` cell, the **weight** of an item equals:
+
+```
+weight(item) = sum(N_item for this item) / sum(N_item for all items)
+               across all selected dates in the date range
+```
+
+The item with the highest total weight wins and is displayed. The hover
+tooltip shows the winning item's **weight** (0–1), which corresponds to its
+share of all observations for that cell over the selected period.
+
+Weighted is the only method sensitive to how many raw observations back each
+date's entry — it surfaces items that appear rarely on any single date but
+accumulate significant mass across the date range.
 
 ---
 
@@ -328,10 +384,11 @@ The app lives in a single file `app.py`, organized into five sections.
 Fixed palette, synthetic bin names, and limits:
 
 ```python
-N_MAX_ITEMS      = 12   # total colour slots including gray
-N_MAX_USER_ITEMS = 11   # max user-selectable distinctly-coloured items
+N_MAX_ITEMS      = 11   # total colour slots including gray
+N_MAX_USER_ITEMS = 10   # max user-selectable distinctly-coloured items
 OTHER_COLOR      = '#9CA3AF'  # gray for items beyond the colour limit
-COLORS           = ['#B91C1C', '#1E3A8A', ...]  # 12 qualitative colours
+COLORS           = ['#B91C1C', '#1E3A8A', ...]  # 11 qualitative colours
+VARIOUS_IDX      = n_items   # sentinel item index used for M2 VARIOUS cells
 ```
 
 ### Section 2: Data loading
@@ -340,15 +397,29 @@ COLORS           = ['#B91C1C', '#1E3A8A', ...]  # 12 qualitative colours
   `item` column; returns items ordered by descending frequency and a count
   dict. Cached by file content.
 - `load_user_data(file_bytes, filename)` — full parse; keeps all items with
-  real names; handles composite `(bin_id, segment)` keys and deduplication.
-  Returns the data dictionary without colour information (colours are
-  assigned in the UI).
-- `generate_data()` — synthetic data generator. Cached with fixed seed.
+  real names; handles composite `(bin_id, segment)` keys; builds compact
+  `date_winner` / `date_top_share` arrays and sparse `wt_*` long arrays.
+  Returns the data dictionary without colour information.
+- `generate_data()` — synthetic data generator with multi-observation cells.
+  Cached with fixed seed.
 
-### Section 3: Helpers
+### Section 3: Compute functions
+
+- `compute_plurality(date_winner_slice, n_items)` — vectorised `np.bincount`
+  over the `(B, D, P)` int16 winner array; returns `(winner, share)` arrays.
+- `compute_abs_majority(date_winner_slice, date_top_share_slice, n_items, various_idx)` —
+  applies the 50%-threshold rule to `date_top_share`; cells below threshold
+  become `various_idx`. Returns `(winner, share)` arrays.
+- `compute_weighted(data, visible_bin_indices, date_start_idx, date_end_idx, pos_indices, n_items)` —
+  filters the sparse `wt_*` long arrays, accumulates `N_item` via
+  `np.bincount`, and normalises. Returns `(winner, share, weights)` arrays.
+- `compute_view(data, visible_bin_indices, date_start_idx, date_end_idx, pos_indices, method, n_items, various_idx)` —
+  unified entry point; dispatches to the right function; returns
+  `(winner, share, weights_or_None)`.
+
+### Section 4: Helpers
 
 - `dim_color(hex, amount, bg)` — blends a color toward the background.
-- `compute_majority(items_subset, n_items)` — vectorized mode + tiebreak.
 - `apply_url_params(dates, item_codes)` — seeds widget state from URL query
   params on fresh sessions (enables shareable links).
 - `make_view_csv(...)` — serialises the current heatmap view to CSV for
@@ -356,31 +427,43 @@ COLORS           = ['#B91C1C', '#1E3A8A', ...]  # 12 qualitative colours
 - `sort_descriptions(bin_term, item_term)` — returns sort-mode caption
   strings using the current domain vocabulary.
 
-### Section 4: App layout
+### Section 5: App layout
 
 Flat sequence of widget calls and data transforms executed top-to-bottom
 on every interaction:
 
 1. Page config and CSS injection.
-2. Generate synthetic data (default).
+2. Generate / load data; derive `_dataset_sig` for cache invalidation.
 3. Sidebar: file upload → `discover_items` → colour-selection multiselect
    → `load_user_data` → terminology inputs.
 4. Derive `item_colors` from the colour-selection; define `pill_items`.
 5. JS injection for pill button colours.
 6. Title block + **User guide** button (`@st.dialog`).
-7. **Row 1:** Regions pills + Items pills, each with all/none buttons below.
+7. **Row 1:** Regions pills + Items pills + **Method** pills, each with
+   all/none buttons where applicable.
 8. **Row 2:** Date range, bin rank range, position range sliders.
 9. **Row 3:** Sort mode radio.
-10. Filter pipeline → `compute_majority` → sort → build colorscale.
-11. View summary block + colour legend.
-12. Heatmap + marginal bar subplot → `st.plotly_chart`.
-13. Cell size slider + Auto-fit checkbox + Download CSV/HTML buttons.
-14. Drill-down selectbox for per-bin time-series heatmap.
+10. Session-state `_view_sig` cache check → `compute_view` (only when
+    dataset, visible bins, date range, position set, method, or item count
+    changes; skipped on sort/highlight/cell_size interactions).
+11. Filter pipeline → sort → build colorscale.
+12. View summary block + colour legend.
+13. Heatmap + marginal bar subplot → `st.plotly_chart`.
+14. Cell size slider + Auto-fit checkbox + Download CSV/HTML buttons.
+15. Drill-down selectbox for per-bin time-series heatmap.
+
+### Performance cache
+
+Results from `compute_view` are stored in session state under the key
+`_view_sig = (dataset_sig, visible_bins, date_start, date_end, pos_indices, method, n_items)`.
+Interactions that change only sort order, item highlighting, or cell size
+reuse the cached arrays and skip all NumPy work, keeping those interactions
+near-instant.
 
 ### Colour assignment
 
 ```python
-# colored_items: user's selection of up to 11 items
+# colored_items: user's selection of up to 10 items
 _color_idx  = {item: i for i, item in enumerate(colored_items)}
 item_colors = [
     COLORS[_color_idx[item]] if item in colored_set else OTHER_COLOR
@@ -390,7 +473,7 @@ item_colors = [
 
 The colorscale spans `[-1, n_items]`: slot 0 maps value `-1` (no data) to
 the panel background; slots 1..n_items map each item index to its color
-(distinct or gray).
+(distinct or gray); slot `n_items` maps `VARIOUS_IDX` to gray (M2 VARIOUS).
 
 ---
 
