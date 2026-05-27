@@ -114,11 +114,19 @@ def sort_descriptions(bt, it):
 # ============ DATA GENERATION ============
 @st.cache_data
 def generate_data():
-    """Return synthetic data as a counts array (B, D, P, n_items).
+    """Return synthetic data in compact form — no permanent dense counts cube.
 
-    Each (bin, date, position) cell has k ∈ [1, 10] simulated observations
-    distributed across items according to the archetype probability.
-    This produces scenarios where the three aggregation methods can disagree.
+    Primary arrays (for Majority / Abs. Majority):
+      date_winner    : (B, D, P) int16   per-date plurality winner; -1 = no data
+      date_top_share : (B, D, P) float32 per-date top-item share (max_count/group_N)
+
+    Sparse long arrays (for Weighted; only non-zero item counts stored):
+      wt_bin_idx, wt_date_idx, wt_pos_idx : int32
+      wt_item_idx                          : int16
+      wt_N_item                            : int32
+
+    Each (bin, date, position) cell has k ∈ [1, 10] simulated observations so
+    all three aggregation methods can disagree on the same data.
     """
     rng = np.random.default_rng(42)
     n_items = len(ITEMS)
@@ -138,7 +146,7 @@ def generate_data():
             return np.array([1.2, 1.2, 1.2, 2.0, 2.0, 1.8, 1.0, 1.0, 0.8, 0.8, 0.6, 0.5, 0.5])
         return np.ones(n_items)
 
-    pos_biases = np.array([positional_bias(p) for p in range(NUM_POSITIONS)])  # (P, n_items)
+    pos_biases = np.array([positional_bias(p) for p in range(NUM_POSITIONS)])
 
     bin_archetypes   = rng.integers(0, 5, NUM_BINS)
     bin_segments     = np.array(rng.choice(SEGMENTS, NUM_BINS))
@@ -147,8 +155,8 @@ def generate_data():
     _raw_scores      = archetype_rank_center[bin_archetypes] + rank_noise
     bin_ranks        = (np.argsort(np.argsort(_raw_scores)) + 1).astype(int)
 
-    has_regime    = rng.random(NUM_BINS) < 0.20
-    regime_dates  = rng.integers(15, 38, NUM_BINS)
+    has_regime      = rng.random(NUM_BINS) < 0.20
+    regime_dates    = rng.integers(15, 38, NUM_BINS)
     regime_new_arch = rng.integers(0, 5, NUM_BINS)
     drift_direction = rng.normal(0, 1, (NUM_BINS, n_items))
     drift_strength  = 0.30
@@ -156,57 +164,83 @@ def generate_data():
     end_date = date.today()
     dates    = [end_date - timedelta(weeks=NUM_DATES - 1 - w) for w in range(NUM_DATES)]
 
-    date_idx  = np.arange(NUM_DATES)
+    date_idx   = np.arange(NUM_DATES)
     use_regime = has_regime[:, None] & (date_idx[None, :] >= regime_dates[:, None])
     arch_idx   = np.where(use_regime, regime_new_arch[:, None], bin_archetypes[:, None])
 
-    base = archetypes[arch_idx]  # (B, D, n_items)
+    base = archetypes[arch_idx]
     date_factors = date_idx / (NUM_DATES - 1) * drift_strength
     base = base + drift_direction[:, None, :] * date_factors[None, :, None]
     base = np.clip(base, 0.01, None)
     base = base / base.sum(axis=2, keepdims=True)
 
-    # (B, D, P, n_items) probability distributions
     combined  = base[:, :, None, :] * pos_biases[None, None, :, :]
     combined /= combined.sum(axis=3, keepdims=True)
 
-    # ── Simulate multiple observations per (bin, date, position) ──────────────
-    # k_obs[b, d, p] ~ Uniform[1, 10]  — creates varied scenarios for M1/M2/M3
     k_obs = rng.integers(1, 11, (NUM_BINS, NUM_DATES, NUM_POSITIONS), dtype=np.int32)
 
-    counts = np.zeros((NUM_BINS, NUM_DATES, NUM_POSITIONS, n_items), dtype=np.int32)
+    # Compact output arrays
+    date_winner    = np.full((NUM_BINS, NUM_DATES, NUM_POSITIONS), -1, dtype=np.int16)
+    date_top_share = np.zeros((NUM_BINS, NUM_DATES, NUM_POSITIONS), dtype=np.float32)
 
-    # Sample per bin to keep peak memory manageable (~20 MB per bin for max_k=10)
+    # Long arrays for Weighted (per-bin lists, concatenated at end)
+    wt_bins = []; wt_dates = []; wt_pos = []; wt_items = []; wt_ni = []
+
     for b in range(NUM_BINS):
-        probs_b = combined[b]          # (D, P, n_items)
-        k_b     = k_obs[b]             # (D, P)
+        probs_b = combined[b]
+        k_b     = k_obs[b]
         max_k   = int(k_b.max())
 
-        # CDF for inverse-transform sampling
-        cdf_b   = np.cumsum(probs_b, axis=-1)   # (D, P, n_items)
+        cdf_b = np.cumsum(probs_b, axis=-1)
+        r     = rng.random((NUM_DATES, NUM_POSITIONS, max_k))
+        draws = (r[:, :, :, None] < cdf_b[:, :, None, :]).argmax(axis=-1)
 
-        # Draw max_k uniform samples for every (d, p) cell
-        r = rng.random((NUM_DATES, NUM_POSITIONS, max_k))  # (D, P, max_k)
-
-        # Map each draw to an item index via the CDF
-        draws = (r[:, :, :, None] < cdf_b[:, :, None, :]).argmax(axis=-1)  # (D, P, max_k)
-
-        # Keep only the first k_b[d,p] draws per cell
-        k_range = np.arange(max_k)                                  # (max_k,)
-        valid   = k_range[None, None, :] < k_b[:, :, None]          # (D, P, max_k)
+        k_range = np.arange(max_k)
+        valid   = k_range[None, None, :] < k_b[:, :, None]
 
         d_idx, p_idx, _ = np.where(valid)
         item_idx = draws[d_idx, p_idx, np.where(valid)[2]].astype(np.intp)
-        np.add.at(counts[b], (d_idx, p_idx, item_idx), 1)
 
+        # Temporary per-bin counts (discarded after extracting compact arrays)
+        counts_b = np.zeros((NUM_DATES, NUM_POSITIONS, n_items), dtype=np.int32)
+        np.add.at(counts_b, (d_idx, p_idx, item_idx), 1)
+
+        group_n_b  = counts_b.sum(axis=-1)
+        has_data_b = group_n_b > 0
+        argmax_b   = counts_b.argmax(axis=-1)      # lower index wins ties
+        max_cnt_b  = counts_b.max(axis=-1)
+
+        date_winner[b]    = np.where(has_data_b, argmax_b, -1).astype(np.int16)
+        date_top_share[b] = np.where(
+            has_data_b,
+            (max_cnt_b / np.maximum(group_n_b, 1)).astype(np.float32),
+            np.float32(0)
+        )
+
+        # Sparse records — keep only non-zero item counts
+        di_nz, pi_nz, ii_nz = np.where(counts_b > 0)
+        if len(di_nz) > 0:
+            wt_bins.append(np.full(len(di_nz), b, dtype=np.int32))
+            wt_dates.append(di_nz.astype(np.int32))
+            wt_pos.append(pi_nz.astype(np.int32))
+            wt_items.append(ii_nz.astype(np.int16))
+            wt_ni.append(counts_b[di_nz, pi_nz, ii_nz].astype(np.int32))
+        # counts_b is discarded here
+
+    _cat = lambda lst, dt: np.concatenate(lst) if lst else np.array([], dtype=dt)
     return {
-        'counts':       counts,          # (B, D, P, n_items) int32
+        'date_winner':    date_winner,
+        'date_top_share': date_top_share,
+        'wt_bin_idx':  _cat(wt_bins,  np.int32),
+        'wt_date_idx': _cat(wt_dates, np.int32),
+        'wt_pos_idx':  _cat(wt_pos,   np.int32),
+        'wt_item_idx': _cat(wt_items, np.int16),
+        'wt_N_item':   _cat(wt_ni,    np.int32),
         'bin_ranks':    bin_ranks,
         'bin_segments': bin_segments,
         'bin_names':    np.array(BIN_NAMES),
         'dates':        dates,
         'item_codes':   list(ITEMS),
-        # First 10 items: distinct colours; last 3 items: gray
         'item_colors':  list(COLORS[:N_MAX_USER_ITEMS]) + [OTHER_COLOR] * (len(ITEMS) - N_MAX_USER_ITEMS),
     }
 
@@ -226,7 +260,8 @@ def discover_items(file_bytes: bytes, filename: str):
 
 @st.cache_data
 def load_user_data(file_bytes: bytes, filename: str):
-    """Parse a pre-aggregated CSV into a counts array.
+    """Parse a pre-aggregated CSV into compact date_winner/date_top_share arrays
+    and sparse long arrays for the Weighted method.
 
     Required columns: bin_id, date, position, item, bin_rank, segment,
                       N_item, group_N, pct
@@ -245,15 +280,11 @@ def load_user_data(file_bytes: bytes, filename: str):
         return None
 
     # Date: parse as M/D/YYYY (single- or double-digit month/day, 4-digit year).
-    # %m and %d in strptime accept non-padded values (e.g. "1/5/2024" works).
-    # Use explicit format to avoid pandas inference ambiguity; fall back to
-    # dayfirst=False generic parsing so mixed-format files still load.
     _raw_dates = df['date'].astype(str)
     df['date']  = pd.to_datetime(_raw_dates, format='%m/%d/%Y', errors='coerce')
-    _n_nat      = df['date'].isna().sum()
+    _n_nat = df['date'].isna().sum()
     if _n_nat:
-        _fallback = pd.to_datetime(_raw_dates[df['date'].isna()],
-                                   dayfirst=False, errors='coerce')
+        _fallback = pd.to_datetime(_raw_dates[df['date'].isna()], dayfirst=False, errors='coerce')
         df.loc[df['date'].isna(), 'date'] = _fallback
         _still_nat = df['date'].isna().sum()
         if _still_nat:
@@ -263,48 +294,67 @@ def load_user_data(file_bytes: bytes, filename: str):
             )
             df = df[df['date'].notna()]
     df['date'] = df['date'].dt.date
-    df['item']     = df['item'].astype(str)
-    df['bin_id']   = df['bin_id'].astype(str)
-    df['segment']  = df['segment'].astype(str)
-    df['N_item']   = pd.to_numeric(df['N_item'],  errors='coerce').fillna(0).astype(np.int32)
-    df['group_N']  = pd.to_numeric(df['group_N'], errors='coerce').fillna(0).astype(np.int32)
 
-    df['bin_key']  = df['bin_id'] + ' · ' + df['segment']
+    df['item']    = df['item'].astype(str)
+    df['bin_id']  = df['bin_id'].astype(str)
+    df['segment'] = df['segment'].astype(str)
+    df['N_item']  = pd.to_numeric(df['N_item'],  errors='coerce').fillna(0).astype(np.int32)
+    df['group_N'] = pd.to_numeric(df['group_N'], errors='coerce').fillna(0).astype(np.int32)
+    df['bin_key'] = df['bin_id'] + ' · ' + df['segment']
 
     # Item vocabulary ranked by total observations
-    user_items = (
-        df.groupby('item')['N_item'].sum()
-        .sort_values(ascending=False)
-        .index.tolist()
-    )
+    user_items  = (df.groupby('item')['N_item'].sum()
+                   .sort_values(ascending=False).index.tolist())
+    item_to_idx = {code: i for i, code in enumerate(user_items)}
 
     bin_keys  = sorted(df['bin_key'].unique())
     dates     = sorted(df['date'].unique())
     positions = sorted(df['position'].unique())
 
-    n_bins    = len(bin_keys)
-    n_dates   = len(dates)
-    n_pos     = len(positions)
-    n_items_u = len(user_items)
+    n_bins  = len(bin_keys)
+    n_dates = len(dates)
+    n_pos   = len(positions)
 
-    item_to_idx  = {code: i for i, code in enumerate(user_items)}
     bin_idx_map  = {b: i for i, b in enumerate(bin_keys)}
     date_idx_map = {d: i for i, d in enumerate(dates)}
     pos_idx_map  = {p: i for i, p in enumerate(positions)}
 
-    counts_array = np.zeros((n_bins, n_dates, n_pos, n_items_u), dtype=np.int32)
+    # Integer index columns (for vectorised array fill below)
+    df['_bi'] = df['bin_key'].map(bin_idx_map).astype(np.int32)
+    df['_di'] = df['date'].map(date_idx_map).astype(np.int32)
+    df['_pi'] = df['position'].map(pos_idx_map).astype(np.int32)
+    df['_ii'] = df['item'].map(item_to_idx)          # float, NaN for unknown items
 
-    _bi = df['bin_key'].map(bin_idx_map).values.astype(np.intp)
-    _di = df['date'].map(date_idx_map).values.astype(np.intp)
-    _pi = df['position'].map(pos_idx_map).values.astype(np.intp)
-    _ii = df['item'].map(item_to_idx).values        # float with possible NaN
-    _ni = df['N_item'].values.astype(np.int32)
+    valid_mask = df['_ii'].notna()
+    df_v = df[valid_mask].copy()
+    df_v['_ii'] = df_v['_ii'].astype(np.int32)
 
-    valid = ~np.isnan(_ii)
-    np.add.at(counts_array,
-              (_bi[valid], _di[valid], _pi[valid], _ii[valid].astype(np.intp)),
-              _ni[valid])
+    # ── date_winner / date_top_share ──────────────────────────────────────────
+    # Sort by N_item DESC then item index ASC within each cell so that the
+    # plurality winner (tie-break: lower item index) is always the first row.
+    df_sorted = df_v.sort_values(
+        ['_bi', '_di', '_pi', 'N_item', '_ii'],
+        ascending=[True, True, True, False, True],
+    )
+    winners = df_sorted.drop_duplicates(['_bi', '_di', '_pi'], keep='first')
 
+    date_winner    = np.full((n_bins, n_dates, n_pos), -1, dtype=np.int16)
+    date_top_share = np.zeros((n_bins, n_dates, n_pos), dtype=np.float32)
+
+    _bw  = winners['_bi'].to_numpy(np.intp)
+    _dw  = winners['_di'].to_numpy(np.intp)
+    _pw  = winners['_pi'].to_numpy(np.intp)
+    _iw  = winners['_ii'].to_numpy(np.int16)
+    _ni_w = winners['N_item'].to_numpy(np.int32)
+    _gn_w = winners['group_N'].to_numpy(np.int32)
+    _sh   = np.where(_gn_w > 0,
+                     _ni_w.astype(np.float32) / np.maximum(_gn_w, 1),
+                     np.float32(0))
+
+    date_winner[_bw, _dw, _pw]    = _iw
+    date_top_share[_bw, _dw, _pw] = _sh.astype(np.float32)
+
+    # ── Sparse long arrays for Weighted ──────────────────────────────────────
     bin_meta = (
         df.drop_duplicates('bin_key')
         .set_index('bin_key')
@@ -312,7 +362,13 @@ def load_user_data(file_bytes: bytes, filename: str):
     )
 
     return {
-        'counts':       counts_array,
+        'date_winner':    date_winner,
+        'date_top_share': date_top_share,
+        'wt_bin_idx':  df_v['_bi'].to_numpy(np.int32),
+        'wt_date_idx': df_v['_di'].to_numpy(np.int32),
+        'wt_pos_idx':  df_v['_pi'].to_numpy(np.int32),
+        'wt_item_idx': df_v['_ii'].to_numpy(np.int16),
+        'wt_N_item':   df_v['N_item'].to_numpy(np.int32),
         'bin_ranks':    bin_meta['bin_rank'].to_numpy().astype(int),
         'bin_segments': bin_meta['segment'].to_numpy().astype(str),
         'bin_names':    np.array(bin_keys),
@@ -323,99 +379,73 @@ def load_user_data(file_bytes: bytes, filename: str):
 
 # ============ COMPUTE FUNCTIONS ============
 
-def compute_plurality(counts_slice, n_items):
+def compute_plurality(date_winner_slice, n_items):
     """METHOD_1 — Majority.
 
-    For each (bin, date, position): find the per-date plurality winner
-    (item with most observations that day).  Then across the date range,
-    count how many dates each item won.  The item with the most date-wins
-    is returned; tiebreak = most-recent-date plurality winner.
+    Cross-date majority count of per-date plurality winners.
+    Tiebreak = most-recent-date winner.
 
-    counts_slice : (n_bins, n_dates, n_pos, n_items)
-    Returns      : winner (n_bins, n_pos) int16, share (n_bins, n_pos) float
-                   share = fraction of dates the winner won.
+    date_winner_slice : (n_bins, n_dates, n_pos) int16  — -1 = no data
+    Returns           : winner (n_bins, n_pos) int16,
+                        share  (n_bins, n_pos) float32 = fraction of dates winner won.
     """
-    n_bins, n_dates, n_pos, _ = counts_slice.shape
-    group_n  = counts_slice.sum(axis=-1)          # (n_bins, n_dates, n_pos)
-    has_data = group_n > 0
-
-    # Per-date winner: argmax of counts (stable; lower index wins ties)
-    date_winner = counts_slice.argmax(axis=-1).astype(np.int16)   # (B, D, P)
-    date_winner = np.where(has_data, date_winner, np.int16(-1))
+    n_bins, n_dates, n_pos = date_winner_slice.shape
+    has_data = date_winner_slice >= 0
 
     if n_dates == 1:
-        w = date_winner[:, 0, :]
-        no_data = ~has_data[:, 0, :]
-        w[no_data] = -1
-        s = has_data[:, 0, :].astype(float)   # 1.0 if data, 0.0 if not
+        w = date_winner_slice[:, 0, :].copy()
+        s = has_data[:, 0, :].astype(np.float32)
         return w, s
 
-    # Count wins across dates — np.bincount is fully vectorised (no Python loop)
     bd, dd, pd_ = np.where(has_data)
-    items_at_valid = date_winner[bd, dd, pd_].astype(np.intp)
+    items_at_valid = date_winner_slice[bd, dd, pd_].astype(np.intp)
     flat_idx   = (bd.astype(np.intp) * n_pos + pd_) * n_items + items_at_valid
     win_counts = np.bincount(flat_idx, minlength=n_bins * n_pos * n_items
                              ).reshape(n_bins, n_pos, n_items).astype(np.int32)
 
-    max_wins = win_counts.max(axis=-1)           # (n_bins, n_pos)
+    max_wins = win_counts.max(axis=-1)
     winner   = win_counts.argmax(axis=-1).astype(np.int16)
 
-    # Tiebreak: prefer most-recent-date winner when its win count equals max
-    recent_has  = has_data[:, -1, :]             # (n_bins, n_pos)
-    recent_win  = date_winner[:, -1, :]          # (n_bins, n_pos)
+    recent_has  = has_data[:, -1, :]
+    recent_win  = date_winner_slice[:, -1, :]
     b2, p2      = np.meshgrid(np.arange(n_bins), np.arange(n_pos), indexing='ij')
     safe_rw     = np.clip(recent_win, 0, n_items - 1)
     recent_wins = win_counts[b2, p2, safe_rw]
-
     winner = np.where(recent_has & (recent_wins == max_wins),
                       recent_win, winner).astype(np.int16)
 
-    n_data_dates = has_data.sum(axis=1)          # (n_bins, n_pos)
+    n_data_dates = has_data.sum(axis=1)
     no_data      = n_data_dates == 0
     winner[no_data] = -1
-    share = np.where(no_data, 0.0, max_wins / np.maximum(n_data_dates, 1))
+    share = np.where(no_data, np.float32(0),
+                     (max_wins / np.maximum(n_data_dates, 1)).astype(np.float32))
     return winner, share
 
 
-def compute_abs_majority(counts_slice, n_items, various_idx):
+def compute_abs_majority(date_winner_slice, date_top_share_slice, n_items, various_idx):
     """METHOD_2 — Abs. Majority.
 
-    Identical to M1 but with a per-date threshold:
-      - Per date: plurality winner wins only if its pct (N_item/group_N) >= 0.50.
-                  If pct < 0.50, that date's value is VARIOUS.
-      - Cross-date: majority count of per-date values (VARIOUS counts as its own
-                  vote-able value), same tiebreak logic as M1.
+    Per-date: if top-item share >= 0.50 → that item; else → VARIOUS.
+    Cross-date: majority count of per-date values (VARIOUS is a valid vote value).
+    Tiebreak = most-recent-date value.
 
-    counts_slice  : (n_bins, n_dates, n_pos, n_items)
-    various_idx   : integer sentinel for VARIOUS cells (= n_items)
-    Returns       : winner (n_bins, n_pos) int16,
-                    share  (n_bins, n_pos) float = fraction of dates won by winner.
-                    For VARIOUS cells: share = fraction of dates that were VARIOUS.
+    date_winner_slice    : (n_bins, n_dates, n_pos) int16
+    date_top_share_slice : (n_bins, n_dates, n_pos) float32
+    Returns: winner (n_bins, n_pos) int16,
+             share  (n_bins, n_pos) float32 = fraction of dates won by winner.
     """
-    n_bins, n_dates, n_pos, _ = counts_slice.shape
-    group_n  = counts_slice.sum(axis=-1)          # (n_bins, n_dates, n_pos)
-    has_data = group_n > 0
+    n_bins, n_dates, n_pos = date_winner_slice.shape
+    has_data = date_winner_slice >= 0
 
-    # Per-date plurality winner (argmax; stable — lower index wins ties)
-    date_argmax = counts_slice.argmax(axis=-1).astype(np.int16)   # (B, D, P)
-
-    # Per-date pct of the plurality winner — argmax value equals the max count
-    top_pct = np.where(has_data,
-                       counts_slice.max(axis=-1) / np.maximum(group_n, 1),
-                       0.0)                                        # (B, D, P)
-
-    # Per-date value: item if pct >= 0.5, else VARIOUS; -1 if no data
     date_value = np.where(
-        ~has_data,          np.int16(-1),
-        np.where(top_pct >= 0.5, date_argmax, np.int16(various_idx))
+        ~has_data,                        np.int16(-1),
+        np.where(date_top_share_slice >= 0.5,
+                 date_winner_slice,       np.int16(various_idx))
     ).astype(np.int16)
 
     if n_dates == 1:
-        w = date_value[:, 0, :]
-        s = top_pct[:, 0, :]          # show the top item's pct even for VARIOUS
-        return w, s
+        return date_value[:, 0, :], date_top_share_slice[:, 0, :].astype(np.float32)
 
-    # Cross-date win count — vectorised via np.bincount
     n_vals = n_items + 1
     bd, dd, pd_ = np.where(has_data)
     vals_valid  = date_value[bd, dd, pd_].astype(np.intp)
@@ -426,7 +456,6 @@ def compute_abs_majority(counts_slice, n_items, various_idx):
     max_wins = win_counts.max(axis=-1)
     winner   = win_counts.argmax(axis=-1).astype(np.int16)
 
-    # Tiebreak: prefer most-recent-date value when tied
     recent_has = has_data[:, -1, :]
     recent_val = date_value[:, -1, :]
     b2, p2     = np.meshgrid(np.arange(n_bins), np.arange(n_pos), indexing='ij')
@@ -438,53 +467,99 @@ def compute_abs_majority(counts_slice, n_items, various_idx):
     n_data_dates = has_data.sum(axis=1)
     no_data      = n_data_dates == 0
     winner[no_data] = -1
-    share = np.where(no_data, 0.0, max_wins / np.maximum(n_data_dates, 1))
+    share = np.where(no_data, np.float32(0),
+                     (max_wins / np.maximum(n_data_dates, 1)).astype(np.float32))
     return winner, share
 
 
-def compute_weighted(counts_slice, n_items):
+def compute_weighted(data, visible_bin_indices, date_start_idx, date_end_idx,
+                     pos_indices, n_items):
     """METHOD_3 — Weighted.
 
-    Aggregate across the date range using:
-        weighted_share[b, p, i] = sum(N_item[b, :, p, i]) / sum(group_N[b, :, p])
-
+    Aggregate the sparse wt_* long arrays for the visible (bins × dates × positions).
+    share[b, p, i] = sum_dates(N_item[b, :, p, i]) / sum_dates(group_N[b, :, p])
     Winner = item with highest aggregate share.
-    Also returns the full weighted_share array for the bar chart.
 
-    counts_slice    : (n_bins, n_dates, n_pos, n_items)
-    Returns         : winner (n_bins, n_pos) int16,
-                      share  (n_bins, n_pos) float   (winner's aggregate share),
-                      weights (n_bins, n_pos, n_items) float
+    Returns: winner  (n_vis, n_pos_sel) int16,
+             share   (n_vis, n_pos_sel) float32  (winner's aggregate share),
+             weights (n_vis, n_pos_sel, n_items) float32  (all items' shares — for bar)
     """
-    total_item  = counts_slice.sum(axis=1)        # (n_bins, n_pos, n_items)
-    group_total = total_item.sum(axis=-1)         # (n_bins, n_pos)
+    n_vis     = len(visible_bin_indices)
+    n_pos_sel = len(pos_indices)
+    n_bins_t  = data['date_winner'].shape[0]
+    n_pos_t   = data['date_winner'].shape[2]
 
-    denom   = np.maximum(group_total[:, :, None], 1)
-    weights = total_item / denom                  # (n_bins, n_pos, n_items)
+    _empty = (np.full((n_vis, n_pos_sel), -1, dtype=np.int16),
+              np.zeros((n_vis, n_pos_sel), dtype=np.float32),
+              np.zeros((n_vis, n_pos_sel, n_items), dtype=np.float32))
 
-    winner  = weights.argmax(axis=-1).astype(np.int16)
-    max_wt  = weights.max(axis=-1)
+    bi = data['wt_bin_idx'];  di = data['wt_date_idx']
+    pi = data['wt_pos_idx'];  ii = data['wt_item_idx']
+    ni = data['wt_N_item']
+    if len(bi) == 0:
+        return _empty
+
+    # Lookup tables: global index → local (-1 = not in view)
+    vis_local = np.full(n_bins_t, -1, dtype=np.int32)
+    vis_local[visible_bin_indices] = np.arange(n_vis, dtype=np.int32)
+    pos_local = np.full(n_pos_t, -1, dtype=np.int32)
+    pos_local[np.array(pos_indices, dtype=np.int32)] = np.arange(n_pos_sel, dtype=np.int32)
+
+    in_vis  = vis_local[bi] >= 0
+    in_date = (di >= date_start_idx) & (di <= date_end_idx)
+    in_pos  = pos_local[pi] >= 0
+    mask    = in_vis & in_date & in_pos
+    if not mask.any():
+        return _empty
+
+    lb  = vis_local[bi[mask]]
+    lp  = pos_local[pi[mask]]
+    iif = ii[mask].astype(np.intp)
+    nif = ni[mask]
+
+    flat_idx = (lb.astype(np.intp) * n_pos_sel + lp) * n_items + iif
+    total_N  = np.bincount(flat_idx, weights=nif.astype(np.float64),
+                           minlength=n_vis * n_pos_sel * n_items
+                           ).reshape(n_vis, n_pos_sel, n_items).astype(np.float32)
+
+    group_total = total_N.sum(axis=-1)
+    weights     = (total_N / np.maximum(group_total[:, :, None], np.float32(1))).astype(np.float32)
+    winner      = weights.argmax(axis=-1).astype(np.int16)
+    max_wt      = weights.max(axis=-1).astype(np.float32)
 
     no_data = group_total == 0
     winner[no_data] = -1
-    return winner, max_wt, weights
+    return winner, np.where(no_data, np.float32(0), max_wt), weights
 
 
-def compute_view(counts_slice, method, n_items, various_idx):
+def compute_view(data, visible_bin_indices, date_start_idx, date_end_idx,
+                 pos_indices, method, n_items, various_idx):
     """Dispatch to the appropriate compute function.
 
+    For Majority / Abs. Majority: slices compact date_winner / date_top_share.
+    For Weighted: aggregates sparse long arrays over the visible view.
+
     Returns (winner, share, weights_or_None)
-      winner : (n_bins, n_pos) int16  — item index or -1 (no data) or various_idx
-      share  : (n_bins, n_pos) float
-      weights: (n_bins, n_pos, n_items) float | None
+      winner  : (n_vis, n_pos_sel) int16
+      share   : (n_vis, n_pos_sel) float32
+      weights : (n_vis, n_pos_sel, n_items) float32 | None
     """
     if method == 'Weighted':
-        return compute_weighted(counts_slice, n_items)
+        return compute_weighted(data, visible_bin_indices, date_start_idx, date_end_idx,
+                                pos_indices, n_items)
+
+    # Compact slice: (n_vis, n_dates_sel, n_pos_sel) — much smaller than 4D counts
+    dw = data['date_winner'][visible_bin_indices,
+                             date_start_idx:date_end_idx + 1, :][:, :, pos_indices]
+
     if method == 'Abs. Majority':
-        w, s = compute_abs_majority(counts_slice, n_items, various_idx)
+        ds = data['date_top_share'][visible_bin_indices,
+                                   date_start_idx:date_end_idx + 1, :][:, :, pos_indices]
+        w, s = compute_abs_majority(dw, ds, n_items, various_idx)
         return w, s, None
-    # Default: 'Majority'
-    w, s = compute_plurality(counts_slice, n_items)
+
+    # Default: Majority
+    w, s = compute_plurality(dw, n_items)
     return w, s, None
 
 
@@ -774,7 +849,8 @@ with st.sidebar:
         user_data = load_user_data(uploaded.getvalue(), uploaded.name)
         if user_data is not None:
             data = user_data
-            n_b, n_d, n_p, n_it = data['counts'].shape
+            n_b, n_d, n_p = data['date_winner'].shape
+            n_it = len(data['item_codes'])
             st.success(
                 f"{uploaded.name}\n\n"
                 f"{n_b} bins · {n_p} positions · {n_d} snapshots · {n_it} items"
@@ -865,7 +941,7 @@ _dataset_sig = (
     f"{data['dates'][0].isoformat()}__{data['dates'][-1].isoformat()}"
     f"__{len(data['dates'])}"
     f"__{int(data['bin_ranks'].min())}__{int(data['bin_ranks'].max())}"
-    f"__{data['counts'].shape[2]}"   # n_positions
+    f"__{data['date_winner'].shape[2]}"   # n_positions
 )
 if st.session_state.get('_dataset_sig') != _dataset_sig:
     for _k in ('wk_slider', 'rank_slider', 'pos_slider'):
@@ -916,7 +992,7 @@ st.html(
 
 apply_url_params(data['dates'], item_codes)
 
-n_pos_total  = data['counts'].shape[2]
+n_pos_total  = data['date_winner'].shape[2]
 min_rank_val = int(data['bin_ranks'].min())
 max_rank_val = int(data['bin_ranks'].max())
 
@@ -1043,8 +1119,8 @@ def _show_method_guide():
 # ── Title ─────────────────────────────────────────────────────────────────────
 _title_col, _help_col = st.columns([9, 1])
 with _title_col:
-    n_bins_total = data['counts'].shape[0]
-    n_dates_total = data['counts'].shape[1]
+    n_bins_total  = data['date_winner'].shape[0]
+    n_dates_total = data['date_winner'].shape[1]
     st.markdown(f"""
 <div class="title-block">
     <div class="title" style="font-family:{_title_font_css};font-style:{_title_font_style};">{_custom_title}</div>
@@ -1256,31 +1332,31 @@ if len(visible_bin_indices) == 0 or len(date_indices) == 0 or len(pos_indices) =
     st.warning("No data in current filter range. Widen your selectors.")
     st.stop()
 
-# ── Compute view (session-state cache: skip recompute when only pos/sort/highlight change) ──
+# ── Compute view (session-state cache) ─────────────────────────────────────
+# M1/M2: slices compact (B,D,P) arrays — sub-millisecond even without cache.
+# M3: aggregates sparse long arrays; cache avoids re-filtering on sort/highlight.
 _view_sig = (
     st.session_state.get('_dataset_sig', ''),
     tuple(visible_bin_indices.tolist()),
     date_start_idx, date_end_idx,
+    tuple(pos_indices),
     method, n_items,
 )
 if st.session_state.get('_view_sig') != _view_sig:
-    _csub = data['counts'][visible_bin_indices, date_start_idx:date_end_idx + 1, :, :]
-    _maj_all, _shr_all, _wgt_all = compute_view(_csub, method, n_items, VARIOUS_IDX)
+    majority_view, share_view, weights_view = compute_view(
+        data, visible_bin_indices, date_start_idx, date_end_idx,
+        pos_indices, method, n_items, VARIOUS_IDX,
+    )
     st.session_state.update({
-        '_view_sig': _view_sig,
-        '_maj_all':  _maj_all,
-        '_shr_all':  _shr_all,
-        '_wgt_all':  _wgt_all,
+        '_view_sig':  _view_sig,
+        '_maj_view':  majority_view,
+        '_shr_view':  share_view,
+        '_wgt_view':  weights_view,
     })
 else:
-    _maj_all = st.session_state['_maj_all']
-    _shr_all = st.session_state['_shr_all']
-    _wgt_all = st.session_state['_wgt_all']
-
-# Slice to selected position window — cached full-position result above
-majority_view = _maj_all[:, pos_indices]
-share_view    = _shr_all[:, pos_indices]
-weights_view  = _wgt_all[:, pos_indices, :] if _wgt_all is not None else None
+    majority_view = st.session_state['_maj_view']
+    share_view    = st.session_state['_shr_view']
+    weights_view  = st.session_state['_wgt_view']
 
 # ── Sort ──────────────────────────────────────────────────────────────────────
 n_vis    = len(visible_bin_indices)
@@ -1718,25 +1794,19 @@ if drill_bin != _no_sel:
         bin_rank_v = data['bin_ranks'][bidx]
         bin_seg    = data['bin_segments'][bidx]
 
-        # Counts for this bin over selected dates × positions
-        # shape: (n_dates_sel, n_pos, n_items)
-        drill_counts = data['counts'][bidx][date_indices][:, pos_indices, :]
-        drill_group  = drill_counts.sum(axis=-1)   # (n_dates_sel, n_pos)
-        drill_dates  = data['dates'][date_start_idx:date_end_idx + 1]
+        drill_dates = data['dates'][date_start_idx:date_end_idx + 1]
 
-        # Per-date winner (same for M1, M2, M3 since it's single-date)
-        drill_winner = drill_counts.argmax(axis=-1).astype(np.int16)  # (n_dates_sel, n_pos)
-        drill_winner = np.where(drill_group > 0, drill_winner, np.int16(-1))
-        drill_share  = np.where(
-            drill_group > 0,
-            drill_counts.max(axis=-1) / np.maximum(drill_group, 1),
-            0.0,
-        )
+        # Per-date winner and top-item share from compact arrays (no 4D counts needed)
+        drill_winner = data['date_winner'][bidx,
+                           date_start_idx:date_end_idx + 1, :][:, pos_indices].copy()
+        drill_share  = data['date_top_share'][bidx,
+                           date_start_idx:date_end_idx + 1, :][:, pos_indices].copy()
+        # shape: (n_dates_sel, n_pos_sel)
 
-        # For Abs. Majority: mark VARIOUS where share < 50 %
+        # For Abs. Majority: mark VARIOUS where top-item share < 50 %
         if method == 'Abs. Majority':
             drill_winner = np.where(
-                (drill_group > 0) & (drill_share < 0.5),
+                (drill_winner >= 0) & (drill_share < 0.5),
                 np.int16(VARIOUS_IDX),
                 drill_winner,
             )
