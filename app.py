@@ -649,10 +649,12 @@ def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, segments,
         share_col:  np.round(share_grid.ravel().astype(float), 4),
     })
     if method == 'Weighted' and weights_grid is not None:
-        # Append one column per item with its aggregate share
-        for i, code in enumerate(item_codes):
-            base[f'share_{code}'] = np.round(
-                weights_grid[:, :, i].ravel().astype(float), 4)
+        # Build all per-item share columns at once to avoid DataFrame fragmentation
+        wt_cols = {
+            f'share_{code}': np.round(weights_grid[:, :, i].ravel().astype(float), 4)
+            for i, code in enumerate(item_codes)
+        }
+        base = pd.concat([base, pd.DataFrame(wt_cols, index=base.index)], axis=1)
     return base.to_csv(index=False).encode()
 
 
