@@ -862,6 +862,19 @@ if st.session_state.get('_segment_sig') != _segment_sig:
     st.session_state.pop('segments_pills', None)
     st.session_state['_segment_sig'] = _segment_sig
 
+# Reset date/rank/pos sliders when the dataset changes so stale values
+# from a previous dataset (e.g. synthetic dates) don't crash list.index().
+_dataset_sig = (
+    f"{data['dates'][0].isoformat()}__{data['dates'][-1].isoformat()}"
+    f"__{len(data['dates'])}"
+    f"__{int(data['bin_ranks'].min())}__{int(data['bin_ranks'].max())}"
+    f"__{data['counts'].shape[2]}"   # n_positions
+)
+if st.session_state.get('_dataset_sig') != _dataset_sig:
+    for _k in ('wk_slider', 'rank_slider', 'pos_slider'):
+        st.session_state.pop(_k, None)
+    st.session_state['_dataset_sig'] = _dataset_sig
+
 _pill_colors   = [item_colors[item_codes.index(it)] for it in pill_items]
 _n_gray        = n_items - len(pill_items)
 _other_pill    = f'other ({_n_gray})' if _n_gray > 0 else None
