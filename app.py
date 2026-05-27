@@ -249,11 +249,18 @@ def generate_data():
 
 @st.cache_data
 def discover_items(file_bytes: bytes, filename: str):
-    """Fast first pass: return item vocabulary ranked by total N_item."""
+    """Fast first pass: return item vocabulary ranked by total N_item.
+    N_item is optional; defaults to 1 per row when absent."""
     try:
-        df = pd.read_csv(io.BytesIO(file_bytes), usecols=['item', 'N_item'])
-        df['item']   = df['item'].astype(str)
-        df['N_item'] = pd.to_numeric(df['N_item'], errors='coerce').fillna(0)
+        # Read item column; include N_item only when it exists in the file
+        cols = pd.read_csv(io.BytesIO(file_bytes), nrows=0).columns.tolist()
+        read_cols = ['item', 'N_item'] if 'N_item' in cols else ['item']
+        df = pd.read_csv(io.BytesIO(file_bytes), usecols=read_cols)
+        df['item'] = df['item'].astype(str)
+        if 'N_item' in df.columns:
+            df['N_item'] = pd.to_numeric(df['N_item'], errors='coerce').fillna(1)
+        else:
+            df['N_item'] = 1
         vc = df.groupby('item')['N_item'].sum().sort_values(ascending=False)
         return vc.index.tolist(), vc.to_dict()
     except Exception:
