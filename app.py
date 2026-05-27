@@ -1454,10 +1454,19 @@ text_grid = np.where(
 )
 z = majority_disp.astype(float)
 
-customdata = np.empty((n_show_bins, n_show_pos, 3), dtype=object)
+customdata = np.empty((n_show_bins, n_show_pos, 4), dtype=object)
 customdata[:, :, 0] = ranks_disp[:, None].astype(int)
 customdata[:, :, 1] = segments_disp[:, None]
 customdata[:, :, 2] = share_disp.astype(float)
+# slot 3: per-cell note shown in hover; only non-blank for M2 VARIOUS cells
+if method == 'Abs. Majority':
+    customdata[:, :, 3] = np.where(
+        majority_disp == VARIOUS_IDX,
+        ' (no per-date majority)',
+        '',
+    )
+else:
+    customdata[:, :, 3] = ''
 
 # ── View summary ──────────────────────────────────────────────────────────────
 date_count = len(date_indices)
@@ -1480,7 +1489,11 @@ else:
     mode_sentence = f"Single snapshot ({d0})."
     _date_label = "1 snapshot"
 
-share_label = "Weighted share" if method == 'Weighted' else "Item share"
+share_label = {
+    'Weighted':      'Weighted share',   # aggregate N_item / group_N across dates
+    'Majority':      'Date-win share',   # fraction of dates won by plurality winner
+    'Abs. Majority': 'Date-win share',   # fraction of dates that voted for this value (incl. VARIOUS)
+}[method]
 
 summary_html = f"""
 <div style="background:rgba(0,0,0,0.04);border-radius:4px;
@@ -1568,8 +1581,6 @@ fig = make_subplots(
     shared_xaxes=True,
 )
 
-_var_tip = " (no item reached 50 %)" if method == 'Abs. Majority' else ""
-
 fig.add_trace(
     go.Heatmap(
         z=z,
@@ -1583,7 +1594,7 @@ fig.add_trace(
         text=text_grid,
         hovertemplate=(
             "<b>%{y}</b>  ·  Rank %{customdata[0]}  ·  %{customdata[1]}<br>"
-            f"Position %{{x}}  ·  {item_term.capitalize()} <b>%{{text}}</b>{_var_tip}<br>"
+            f"Position %{{x}}  ·  {item_term.capitalize()} <b>%{{text}}</b>%{{customdata[3]}}<br>"
             f"{share_label}: %{{customdata[2]:.0%}}"
             "<extra></extra>"
         ),
