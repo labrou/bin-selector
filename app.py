@@ -18,13 +18,13 @@ Features:
   - Upload your own pre-aggregated CSV to replace the synthetic demo data
 
 Data schema (uploaded CSV):
-    Required columns: bin_id, date, position, item, bin_rank, segment,
-                      N_item, group_N, pct
+    Required columns: bin_id, date, position, item, bin_rank, segment
+    Optional column:  N_item  (observation count for that item at that key;
+                               defaults to 1 per row if absent)
     One row per unique [bin_id, date, position, bin_rank, segment, item].
-    N_item  = observation count for that item at that key.
-    group_N = total observations for [bin_id, date, position, bin_rank, segment]
-              (same value for every item row in the same group).
-    pct     = N_item / group_N.
+    group_N (total observations per cell) is computed internally as
+    sum(N_item) over all items sharing the same
+    [bin_id, date, position, bin_rank, segment] key.
     Dates must be in M/D/YYYY format (single- or double-digit month/day).
 
 Aggregation methods
@@ -265,8 +265,10 @@ def load_user_data(file_bytes: bytes, filename: str):
     """Parse a pre-aggregated CSV into compact date_winner/date_top_share arrays
     and sparse long arrays for the Weighted method.
 
-    Required columns: bin_id, date, position, item, bin_rank, segment,
-                      N_item, group_N, pct
+    Required columns: bin_id, date, position, item, bin_rank, segment
+    Optional column:  N_item (defaults to 1 per row if absent)
+    group_N is computed internally as sum(N_item) per
+    [bin_id, date, position, bin_rank, segment] cell.
     Dates accepted in M/D/YYYY format (single or double-digit month/day).
     """
     try:
@@ -275,7 +277,7 @@ def load_user_data(file_bytes: bytes, filename: str):
         st.error(f"Could not parse CSV: {exc}")
         return None
 
-    required = {'bin_id', 'date', 'position', 'item', 'bin_rank', 'segment', 'N_item', 'group_N'}
+    required = {'bin_id', 'date', 'position', 'item', 'bin_rank', 'segment'}
     missing  = required - set(df.columns)
     if missing:
         st.error(f"CSV is missing columns: {', '.join(sorted(missing))}")
@@ -300,8 +302,11 @@ def load_user_data(file_bytes: bytes, filename: str):
     df['item']    = df['item'].astype(str)
     df['bin_id']  = df['bin_id'].astype(str)
     df['segment'] = df['segment'].astype(str)
-    df['N_item']  = pd.to_numeric(df['N_item'],  errors='coerce').fillna(0).astype(np.int32)
-    df['group_N'] = pd.to_numeric(df['group_N'], errors='coerce').fillna(0).astype(np.int32)
+    # N_item is optional; default to 1 per row when absent or unparseable
+    if 'N_item' in df.columns:
+        df['N_item'] = pd.to_numeric(df['N_item'], errors='coerce').fillna(1).astype(np.int32)
+    else:
+        df['N_item'] = np.int32(1)
     df['bin_key'] = df['bin_id'] + ' · ' + df['segment']
 
     # Item vocabulary ranked by total observations
@@ -331,6 +336,9 @@ def load_user_data(file_bytes: bytes, filename: str):
     df_v = df[valid_mask].copy()
     df_v['_ii'] = df_v['_ii'].astype(np.int32)
 
+    # Compute group_N: total N_item across all items for each (bin, date, position) cell
+    df_v['group_N'] = df_v.groupby(['_bi', '_di', '_pi'])['N_item'].transform('sum')
+
     # ── date_winner / date_top_share ──────────────────────────────────────────
     # Sort by N_item DESC then item index ASC within each cell so that the
     # plurality winner (tie-break: lower item index) is always the first row.
@@ -343,10 +351,10 @@ def load_user_data(file_bytes: bytes, filename: str):
     date_winner    = np.full((n_bins, n_dates, n_pos), -1, dtype=np.int16)
     date_top_share = np.zeros((n_bins, n_dates, n_pos), dtype=np.float32)
 
-    _bw  = winners['_bi'].to_numpy(np.intp)
-    _dw  = winners['_di'].to_numpy(np.intp)
-    _pw  = winners['_pi'].to_numpy(np.intp)
-    _iw  = winners['_ii'].to_numpy(np.int16)
+    _bw   = winners['_bi'].to_numpy(np.intp)
+    _dw   = winners['_di'].to_numpy(np.intp)
+    _pw   = winners['_pi'].to_numpy(np.intp)
+    _iw   = winners['_ii'].to_numpy(np.int16)
     _ni_w = winners['N_item'].to_numpy(np.int32)
     _gn_w = winners['group_N'].to_numpy(np.int32)
     _sh   = np.where(_gn_w > 0,
@@ -819,9 +827,9 @@ with st.sidebar:
         "Upload CSV",
         type=["csv"],
         help=(
-            "Required columns: bin_id, date, position, item, bin_rank, segment, "
-            "N_item, group_N, pct.  One row per unique "
-            "[bin_id, date, position, bin_rank, segment, item] combination."
+            "Required columns: bin_id, date, position, item, bin_rank, segment. "
+            "Optional: N_item (observation count; defaults to 1 if absent). "
+            "One row per unique [bin_id, date, position, bin_rank, segment, item] combination."
         ),
         label_visibility="collapsed",
     )
@@ -862,8 +870,8 @@ with st.sidebar:
     else:
         st.caption("Using synthetic demo data. Upload a pre-aggregated CSV to use your own data.")
         st.caption(
-            "Required columns: `bin_id`, `date`, `position`, `item`, `bin_rank`, `segment`, "
-            "`N_item`, `group_N`, `pct`  \n"
+            "Required columns: `bin_id`, `date`, `position`, `item`, `bin_rank`, `segment`  \n"
+            "Optional: `N_item` (observation count per row; defaults to 1 if absent).  \n"
             "Dates in M/D/YYYY format.  "
             f"Up to {N_MAX_USER_ITEMS} items get distinct colours; extras shown in gray."
         )
@@ -1076,19 +1084,18 @@ Hover shows the {item_term}'s share for that specific date.
 
 Open the **sidebar** and upload a pre-aggregated CSV with these columns:
 
-| Column | Notes |
-|---|---|
-| `bin_id` | Display name |
-| `date` | M/D/YYYY format (single or double-digit month/day) |
-| `position` | Ranked position within the {bin_term} |
-| `item` | Any string label |
-| `bin_rank` | Global rank of the {bin_term} |
-| `segment` | Grouping / filter attribute |
-| `N_item` | Observation count for this item at this key |
-| `group_N` | Total observations for [bin\_id, date, position, bin\_rank, segment] |
-| `pct` | N\_item / group\_N |
+| Column | Required | Notes |
+|---|---|---|
+| `bin_id` | ✓ | Display name |
+| `date` | ✓ | M/D/YYYY format (single or double-digit month/day) |
+| `position` | ✓ | Ranked position within the {bin_term} |
+| `item` | ✓ | Any string label |
+| `bin_rank` | ✓ | Global rank of the {bin_term} |
+| `segment` | ✓ | Grouping / filter attribute |
+| `N_item` | optional | Observation count for this item. Defaults to 1 per row if absent. |
 
 One row per unique [bin\_id, date, position, bin\_rank, segment, **item**].
+`group_N` (total observations per cell) is computed internally as `sum(N_item)` across items sharing the same [bin\_id, date, position, bin\_rank, segment] key.
 """)
 
 

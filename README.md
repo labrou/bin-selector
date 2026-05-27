@@ -82,9 +82,9 @@ for the session.
 | `item` | ✓ | Any string label — no limit on unique values |
 | `bin_rank` | ✓ | Global rank of the bin (integer; any range, including 0-based) |
 | `segment` | ✓ | Any string grouping / filter attribute; not restricted to a fixed set. Rename the display label via **Labels → Bin grouping attribute**. |
-| `N_item` | ✓ | Count of observations of this item for this `(bin_id, date, position, bin_rank, segment, item)` combination |
-| `group_N` | ✓ | Total observations across **all** items for this `(bin_id, date, position, bin_rank, segment)` combination (i.e. `sum(N_item)` over items in the group) |
-| `pct` | ✓ | `N_item / group_N` — the item's share of observations for that cell |
+| `N_item` | optional | Count of observations of this item for this `(bin_id, date, position, bin_rank, segment, item)` combination. **Defaults to 1 per row** when absent. |
+
+`group_N` (total observations per cell across all items) is **computed internally** as `sum(N_item)` over all item rows sharing the same `(bin_id, date, position, bin_rank, segment)` key. You do not need to include it in the file.
 
 **Why pre-aggregate?** Rather than uploading every raw observation row, the
 app expects one row per unique `(bin_id, date, position, bin_rank, segment,
