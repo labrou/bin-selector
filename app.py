@@ -314,11 +314,23 @@ def load_user_data(file_bytes: bytes, filename: str):
     df['item']     = df['item'].astype(str)
     df['bin_id']   = df['bin_id'].astype(str)
     df['segment']  = df['segment'].astype(str)
+    df['bin_rank'] = pd.to_numeric(df['bin_rank'], errors='coerce')
+    _bad_rank = df['bin_rank'].isna().sum()
+    if _bad_rank:
+        st.warning(f"{_bad_rank:,} row(s) had unparseable bin_rank values; they will be set to 0.")
+        df['bin_rank'] = df['bin_rank'].fillna(0)
+    df['bin_rank'] = df['bin_rank'].astype(int)
     df['position'] = pd.to_numeric(df['position'], errors='coerce')
     _bad_pos = df['position'].isna().sum()
     if _bad_pos:
         st.warning(f"{_bad_pos:,} row(s) had unparseable position values and will be dropped.")
         df = df[df['position'].notna()]
+    _frac_pos = (df['position'] != df['position'].round()).sum()
+    if _frac_pos:
+        st.warning(
+            f"{_frac_pos:,} row(s) had fractional position values; "
+            "they will be truncated to integers (e.g. 1.9 → 1)."
+        )
     df['position'] = df['position'].astype(int)
     # N_item is optional; default to 1 per row when absent or unparseable
     if 'N_item' in df.columns:
@@ -327,8 +339,18 @@ def load_user_data(file_bytes: bytes, filename: str):
         if _neg:
             st.warning(f"{_neg:,} row(s) had negative N_item values and were set to 0.")
             df['N_item'] = df['N_item'].clip(lower=0)
+        # Drop zero-count rows: they contribute nothing and could produce ghost winners
+        _zero = (df['N_item'] == 0).sum()
+        if _zero:
+            df = df[df['N_item'] > 0]
     else:
         df['N_item'] = np.int32(1)
+
+    # Guard: nothing left after cleaning
+    if df.empty:
+        st.error("No valid rows remain after cleaning. Check dates, positions, and N_item values.")
+        return None
+
     df['bin_key'] = df['bin_id'] + ' · ' + df['segment']
 
     # Item vocabulary ranked by total observations
@@ -392,6 +414,10 @@ def load_user_data(file_bytes: bytes, filename: str):
 
     date_winner[_bw, _dw, _pw]    = _iw
     date_top_share[_bw, _dw, _pw] = _sh.astype(np.float32)
+    # Cells with zero total observations have no valid winner
+    _zero_gn = _gn_w <= 0
+    if _zero_gn.any():
+        date_winner[_bw[_zero_gn], _dw[_zero_gn], _pw[_zero_gn]] = -1
 
     # ── Sparse long arrays for Weighted ──────────────────────────────────────
     bin_meta = (
@@ -409,7 +435,7 @@ def load_user_data(file_bytes: bytes, filename: str):
             "the first value encountered is used."
         )
 
-    _file_id = hashlib.md5(file_bytes[:8192]).hexdigest()[:10]
+    _file_id = hashlib.md5(file_bytes).hexdigest()[:10]
 
     return {
         'date_winner':    date_winner,
@@ -417,7 +443,7 @@ def load_user_data(file_bytes: bytes, filename: str):
         'wt_bin_idx':  df_v['_bi'].to_numpy(np.int32),
         'wt_date_idx': df_v['_di'].to_numpy(np.int32),
         'wt_pos_idx':  df_v['_pi'].to_numpy(np.int32),
-        'wt_item_idx': df_v['_ii'].to_numpy(np.int16),
+        'wt_item_idx': df_v['_ii'].to_numpy(np.int32),
         'wt_N_item':   df_v['N_item'].to_numpy(np.int32),
         'bin_ranks':    bin_meta['bin_rank'].to_numpy().astype(int),
         'bin_segments': bin_meta['segment'].to_numpy().astype(str),
@@ -896,13 +922,16 @@ with st.sidebar:
                 label_visibility="collapsed",
                 key="item_selector",
             )
-            colored_items = chosen if chosen else items_by_freq[:N_MAX_USER_ITEMS]
+            _candidate_colored = chosen if chosen else items_by_freq[:N_MAX_USER_ITEMS]
         else:
-            colored_items = items_by_freq
+            _candidate_colored = items_by_freq
 
         user_data = load_user_data(uploaded.getvalue(), uploaded.name)
         if user_data is not None:
             data = user_data
+            # Only apply upload-derived item colours when the data actually loaded;
+            # otherwise colored_items stays None and the synthetic palette is used.
+            colored_items = _candidate_colored
             n_b, n_d, n_p = data['date_winner'].shape
             n_it = len(data['item_codes'])
             st.success(
@@ -1611,6 +1640,7 @@ _csv_sig = (
     tuple(ordered_bin_indices.tolist()),
     date_start_idx, date_end_idx,
     tuple(pos_indices), method,
+    bin_term, tuple(item_codes),
 )
 if st.session_state.get('_csv_sig') != _csv_sig:
     _new_csv = make_view_csv(
@@ -1791,6 +1821,7 @@ chart_event = st.plotly_chart(
 
 # ── HTML export ────────────────────────────────────────────────────────────────
 _html_view_key = (
+    st.session_state.get('_dataset_sig', ''),
     tuple(ordered_bin_indices.tolist()),
     date_start_idx, date_end_idx,
     tuple(pos_indices),

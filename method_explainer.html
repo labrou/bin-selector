@@ -387,7 +387,7 @@
     simply participates as one of the possible vote values.
   </p>
   <div class="rule-box">
-    <span class="hl">Per date</span> — winner = argmax(N_item); if its pct ≥ 0.50 → that item; else → VARIOUS<br>
+    <span class="hl">Per date</span> — winner = argmax(N_item); if N_item / group_N ≥ 0.50 → that item; else → VARIOUS<br>
     <span class="hl">Cross-date</span> — count per-date values; winner = most frequent value (same as M1)<br>
     <span class="hl">Tiebreak</span> — prefer the most recent date's value
   </div>
