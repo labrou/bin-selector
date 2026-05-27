@@ -182,8 +182,10 @@ limit are shown in gray; their real label is still visible on hover and as the
 cell text. Non-selected items (via the items pills) are dimmed by blending 88%
 toward the background — except gray items, which are never dimmed further.
 
-The cell labeled **VARIOUS** (Abs. Majority only) indicates that no single
-item reached 50% share across the selected date range for that cell.
+The cell labeled **VARIOUS** (Abs. Majority only) indicates that on the
+majority of dates in the selected range no single item held ≥ 50% of that
+day's observations — each such date voted VARIOUS, and VARIOUS won the
+cross-date majority count.
 
 ### Bottom marginal
 
@@ -289,7 +291,7 @@ All sort modes order the **rows** of the heatmap. Ties fall back to stable bin-i
 
 ### Index
 
-Bins in their original data order — the unsorted baseline.
+Bins in alphabetical order by bin ID — the unsorted baseline.
 
 ### Similarity
 
@@ -395,9 +397,10 @@ VARIOUS_IDX      = n_items   # sentinel item index used for M2 VARIOUS cells
 
 ### Section 2: Data loading
 
-- `discover_items(file_bytes, filename)` — fast first pass reading only the
-  `item` column; returns items ordered by descending frequency and a count
-  dict. Cached by file content.
+- `discover_items(file_bytes, filename)` — fast first pass reading `item`
+  and `N_item` (when present) columns; returns items ordered by descending
+  total `N_item` (or row count when `N_item` is absent), and a count dict.
+  Cached by file content.
 - `load_user_data(file_bytes, filename)` — full parse; keeps all items with
   real names; handles composite `(bin_id, segment)` keys; builds compact
   `date_winner` / `date_top_share` arrays and sparse `wt_*` long arrays.

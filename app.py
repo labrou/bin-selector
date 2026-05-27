@@ -14,8 +14,8 @@ Features:
   - Item highlight (dims non-selected items)
   - Legend mapping item codes to colors; VARIOUS shown as a distinct colour
   - Click any bin row to open its full time-series heatmap
-  - Download current view as CSV or PNG
-  - Upload your own pre-aggregated CSV to replace the synthetic demo data
+  - Download current view as CSV or HTML
+  - Upload your own CSV to replace the synthetic demo data
 
 Data schema (uploaded CSV):
     Required columns: bin_id, date, position, item, bin_rank, segment
@@ -30,7 +30,7 @@ Data schema (uploaded CSV):
 Aggregation methods
 -------------------
   Majority      (M1): per-date plurality winner (most observations on that date),
-                      then cross-date majority count; random tiebreak.
+                      then cross-date majority count; tiebreak = most recent date.
   Abs. Majority (M2): per-date: plurality winner keeps its vote only if it holds
                       ≥50 % of that date's observations; otherwise that date votes
                       "VARIOUS". Cross-date: majority count of those per-date votes
@@ -1078,7 +1078,7 @@ a wider range triggers the selected Method's aggregation logic.
 
 | Mode | What it does |
 |---|---|
-| **Index** | Original data order |
+| **Index** | Alphabetical by {bin_term} ID — stable baseline |
 | **Similarity** | Groups {bin_term}s that share the same {item_term}s at positions 1–4 (default) |
 | **{bin_term.capitalize()} Rank** | Ascending by global rank |
 | **Top-rank** | Groups {bin_term}s sharing the same {item_term} at position 1; ties resolved by position 2, 3, … |
@@ -1098,7 +1098,7 @@ Hover shows the {item_term}'s share for that specific date.
 
 ### Uploading your own data
 
-Open the **sidebar** and upload a pre-aggregated CSV with these columns:
+Open the **sidebar** and upload a CSV with these columns:
 
 | Column | Required | Notes |
 |---|---|---|
