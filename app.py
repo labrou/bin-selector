@@ -350,11 +350,12 @@ def compute_plurality(counts_slice, n_items):
         s = has_data[:, 0, :].astype(float)   # 1.0 if data, 0.0 if not
         return w, s
 
-    # Count wins across dates
-    win_counts = np.zeros((n_bins, n_pos, n_items), dtype=np.int32)
+    # Count wins across dates — np.bincount is fully vectorised (no Python loop)
     bd, dd, pd_ = np.where(has_data)
     items_at_valid = date_winner[bd, dd, pd_].astype(np.intp)
-    np.add.at(win_counts, (bd, pd_, items_at_valid), 1)
+    flat_idx   = (bd.astype(np.intp) * n_pos + pd_) * n_items + items_at_valid
+    win_counts = np.bincount(flat_idx, minlength=n_bins * n_pos * n_items
+                             ).reshape(n_bins, n_pos, n_items).astype(np.int32)
 
     max_wins = win_counts.max(axis=-1)           # (n_bins, n_pos)
     winner   = win_counts.argmax(axis=-1).astype(np.int16)
@@ -398,15 +399,10 @@ def compute_abs_majority(counts_slice, n_items, various_idx):
     # Per-date plurality winner (argmax; stable — lower index wins ties)
     date_argmax = counts_slice.argmax(axis=-1).astype(np.int16)   # (B, D, P)
 
-    # Per-date pct of the plurality winner
-    b_ix = np.arange(n_bins)[:, None, None]
-    d_ix = np.arange(n_dates)[None, :, None]
-    p_ix = np.arange(n_pos)[None, None, :]
-    safe_am    = np.clip(date_argmax, 0, n_items - 1).astype(np.intp)
-    top_counts = counts_slice[b_ix, d_ix, p_ix, safe_am]          # (B, D, P)
-    top_pct    = np.where(has_data,
-                          top_counts / np.maximum(group_n, 1),
-                          0.0)                                     # (B, D, P)
+    # Per-date pct of the plurality winner — argmax value equals the max count
+    top_pct = np.where(has_data,
+                       counts_slice.max(axis=-1) / np.maximum(group_n, 1),
+                       0.0)                                        # (B, D, P)
 
     # Per-date value: item if pct >= 0.5, else VARIOUS; -1 if no data
     date_value = np.where(
@@ -419,12 +415,13 @@ def compute_abs_majority(counts_slice, n_items, various_idx):
         s = top_pct[:, 0, :]          # show the top item's pct even for VARIOUS
         return w, s
 
-    # Cross-date win count — n_items+1 slots: items 0..n_items-1 + VARIOUS at n_items
-    n_vals    = n_items + 1
-    win_counts = np.zeros((n_bins, n_pos, n_vals), dtype=np.int32)
+    # Cross-date win count — vectorised via np.bincount
+    n_vals = n_items + 1
     bd, dd, pd_ = np.where(has_data)
     vals_valid  = date_value[bd, dd, pd_].astype(np.intp)
-    np.add.at(win_counts, (bd, pd_, vals_valid), 1)
+    flat_idx    = (bd.astype(np.intp) * n_pos + pd_) * n_vals + vals_valid
+    win_counts  = np.bincount(flat_idx, minlength=n_bins * n_pos * n_vals
+                              ).reshape(n_bins, n_pos, n_vals).astype(np.int32)
 
     max_wins = win_counts.max(axis=-1)
     winner   = win_counts.argmax(axis=-1).astype(np.int16)
@@ -1259,24 +1256,35 @@ if len(visible_bin_indices) == 0 or len(date_indices) == 0 or len(pos_indices) =
     st.warning("No data in current filter range. Widen your selectors.")
     st.stop()
 
-# ── Compute view ──────────────────────────────────────────────────────────────
-counts_sub = data['counts'][visible_bin_indices, date_start_idx:date_end_idx + 1, :, :]
-# shape: (n_vis, n_dates_selected, n_pos_total, n_items)
-
-majority_full, share_full, weights_full = compute_view(
-    counts_sub, method, n_items, VARIOUS_IDX
+# ── Compute view (session-state cache: skip recompute when only pos/sort/highlight change) ──
+_view_sig = (
+    st.session_state.get('_dataset_sig', ''),
+    tuple(visible_bin_indices.tolist()),
+    date_start_idx, date_end_idx,
+    method, n_items,
 )
-# majority_full: (n_vis, n_pos_total) — may contain VARIOUS_IDX or -1
-# weights_full : (n_vis, n_pos_total, n_items) or None
+if st.session_state.get('_view_sig') != _view_sig:
+    _csub = data['counts'][visible_bin_indices, date_start_idx:date_end_idx + 1, :, :]
+    _maj_all, _shr_all, _wgt_all = compute_view(_csub, method, n_items, VARIOUS_IDX)
+    st.session_state.update({
+        '_view_sig': _view_sig,
+        '_maj_all':  _maj_all,
+        '_shr_all':  _shr_all,
+        '_wgt_all':  _wgt_all,
+    })
+else:
+    _maj_all = st.session_state['_maj_all']
+    _shr_all = st.session_state['_shr_all']
+    _wgt_all = st.session_state['_wgt_all']
 
-majority_f = majority_full[:, pos_indices]
-share_f    = share_full[:, pos_indices]
-weights_f  = weights_full[:, pos_indices, :] if weights_full is not None else None
+# Slice to selected position window — cached full-position result above
+majority_view = _maj_all[:, pos_indices]
+share_view    = _shr_all[:, pos_indices]
+weights_view  = _wgt_all[:, pos_indices, :] if _wgt_all is not None else None
 
 # ── Sort ──────────────────────────────────────────────────────────────────────
-n_vis = len(visible_bin_indices)
-# Sort uses majority_full (n_vis, n_pos_total); treat VARIOUS/no-data as -1 for sort keys
-sort_arr = np.where(majority_full == VARIOUS_IDX, -1, majority_full).astype(np.int32)
+n_vis    = len(visible_bin_indices)
+sort_arr = np.where(majority_view == VARIOUS_IDX, -1, majority_view).astype(np.int32)
 
 if sort_mode == "Index":
     order = np.arange(n_vis)
@@ -1289,7 +1297,7 @@ elif sort_mode == "Top-rank":
     order = np.lexsort(sort_arr.T[::-1])
 elif sort_mode == "Selected Share":
     sel_idx_set  = [item_codes.index(i) for i in selected_items]
-    sel_mask     = np.isin(majority_f, sel_idx_set)
+    sel_mask     = np.isin(majority_view, sel_idx_set)
     share_count  = sel_mask.sum(axis=1)
     pos_sum      = (sel_mask * (np.array(pos_indices) + 1)).sum(axis=1)
     order        = np.lexsort([pos_sum, -share_count])
@@ -1297,9 +1305,9 @@ else:
     order = np.arange(n_vis)
 
 ordered_bin_indices = visible_bin_indices[order]
-majority_disp       = majority_f[order]
-share_disp          = share_f[order]
-weights_disp        = weights_f[order] if weights_f is not None else None
+majority_disp       = majority_view[order]
+share_disp          = share_view[order]
+weights_disp        = weights_view[order] if weights_view is not None else None
 
 n_show_bins = len(ordered_bin_indices)
 n_show_pos  = len(pos_indices)
@@ -1454,12 +1462,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-csv_bytes = make_view_csv(
-    bin_names_disp, positions_disp, majority_disp, share_disp,
-    ranks_disp, segments_disp,
-    item_codes=item_codes, bin_term=bin_term,
-    method=method, weights_grid=weights_disp,
+# CSV bytes — cached; rebuild only when the displayed view changes
+_csv_sig = (
+    st.session_state.get('_dataset_sig', ''),
+    tuple(ordered_bin_indices.tolist()),
+    date_start_idx, date_end_idx,
+    tuple(pos_indices), method,
 )
+if st.session_state.get('_csv_sig') != _csv_sig:
+    _new_csv = make_view_csv(
+        bin_names_disp, positions_disp, majority_disp, share_disp,
+        ranks_disp, segments_disp,
+        item_codes=item_codes, bin_term=bin_term,
+        method=method, weights_grid=weights_disp,
+    )
+    st.session_state['_csv_sig']      = _csv_sig
+    st.session_state['_csv_bytes_dl'] = _new_csv
+csv_bytes = st.session_state.get('_csv_bytes_dl', b'')
 
 # ── Build figure ──────────────────────────────────────────────────────────────
 fig = make_subplots(
