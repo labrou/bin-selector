@@ -86,11 +86,9 @@ for the session.
 
 `group_N` (total observations per cell across all items) is **computed internally** as `sum(N_item)` over all item rows sharing the same `(bin_id, date, position, bin_rank, segment)` key. You do not need to include it in the file.
 
-**Why pre-aggregate?** Rather than uploading every raw observation row, the
-app expects one row per unique `(bin_id, date, position, bin_rank, segment,
-item)` combination with the counts already rolled up. This reduces file size
-and upload time. A single `(bin_id, date, position, bin_rank, segment)` key
-can have **up to 10 item rows**; any beyond that are dropped.
+**Duplicate rows are aggregated automatically.** If the same `(bin_id, date, position, bin_rank, segment, item)` key appears on multiple rows, their `N_item` values are summed before any processing. This means you can upload raw one-row-per-observation data (omitting `N_item`, so it defaults to 1) and the app will count correctly. Pre-aggregating to one row per key reduces file size but is not required.
+
+A single `(bin_id, date, position, bin_rank, segment)` key can have **up to 10 distinct item rows** after aggregation; any beyond that are dropped.
 
 **Multiple segment values per bin_id.** If the same `bin_id` appears with
 more than one `segment` value, each `(bin_id, segment)` pair is treated as a

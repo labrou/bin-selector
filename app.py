@@ -267,6 +267,8 @@ def load_user_data(file_bytes: bytes, filename: str):
 
     Required columns: bin_id, date, position, item, bin_rank, segment
     Optional column:  N_item (defaults to 1 per row if absent)
+    Duplicate (bin, date, position, item) rows are summed before processing,
+    so raw one-row-per-observation input works correctly.
     group_N is computed internally as sum(N_item) per
     [bin_id, date, position, bin_rank, segment] cell.
     Dates accepted in M/D/YYYY format (single or double-digit month/day).
@@ -335,6 +337,13 @@ def load_user_data(file_bytes: bytes, filename: str):
     valid_mask = df['_ii'].notna()
     df_v = df[valid_mask].copy()
     df_v['_ii'] = df_v['_ii'].astype(np.int32)
+
+    # Aggregate N_item: sum across any duplicate (bin, date, position, item) rows.
+    # This handles both pre-aggregated input (no-op when each key is unique) and
+    # raw one-row-per-observation input where N_item defaults to 1.
+    df_v = (
+        df_v.groupby(['_bi', '_di', '_pi', '_ii'], as_index=False)['N_item'].sum()
+    )
 
     # Compute group_N: total N_item across all items for each (bin, date, position) cell
     df_v['group_N'] = df_v.groupby(['_bi', '_di', '_pi'])['N_item'].transform('sum')
