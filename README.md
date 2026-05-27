@@ -79,16 +79,16 @@ for the session.
 | `bin_id` | ✓ | String identifier for the bin; used as the display name |
 | `date` | ✓ | Format **M/D/YYYY** (month and day may be single-digit; year is 4 digits). Also accepts any format parseable by `pd.to_datetime`. |
 | `position` | ✓ | Integer rank within the bin (1-based or 0-based; both work) |
-| `item` | ✓ | Any string label — no limit on unique values |
+| `item` | ✓ | Any string label. Item indices are stored as `int32`; up to ~2 billion unique values are supported (well beyond any practical limit). |
 | `bin_rank` | ✓ | Global rank of the bin (integer; any range, including 0-based) |
 | `segment` | ✓ | Any string grouping / filter attribute; not restricted to a fixed set. Rename the display label via **Labels → Bin grouping attribute**. |
-| `N_item` | optional | Count of observations of this item for this `(bin_id, date, position, bin_rank, segment, item)` combination. **Defaults to 1 per row** when absent. |
+| `N_item` | optional | Count of observations of this item for this `(bin_id, date, position, segment, item)` combination. **Defaults to 1 per row** when absent. |
 
-`group_N` (total observations per cell across all items) is **computed internally** as `sum(N_item)` over all item rows sharing the same `(bin_id, date, position, bin_rank, segment)` key. You do not need to include it in the file.
+`group_N` (total observations per cell across all items) is **computed internally** as `sum(N_item)` over all item rows sharing the same `(bin_id, date, position, segment)` key. `bin_rank` is bin-level metadata (one value per bin) and is not part of the aggregation key. You do not need to include `group_N` in the file.
 
-**Duplicate rows are aggregated automatically.** If the same `(bin_id, date, position, bin_rank, segment, item)` key appears on multiple rows, their `N_item` values are summed before any processing. This means you can upload raw one-row-per-observation data (omitting `N_item`, so it defaults to 1) and the app will count correctly. Pre-aggregating to one row per key reduces file size but is not required.
+**Duplicate rows are aggregated automatically.** If the same `(bin_id, date, position, segment, item)` key appears on multiple rows, their `N_item` values are summed before any processing. This means you can upload raw one-row-per-observation data (omitting `N_item`, so it defaults to 1) and the app will count correctly. Pre-aggregating to one row per key reduces file size but is not required.
 
-There is no limit on how many distinct items a cell can have. All items are kept; only the top 10 by total frequency receive a distinct colour — the rest are shown in gray.
+There is no practical limit on the number of distinct items. All items are kept; only the top 10 by total frequency receive a distinct colour — the rest are shown in gray.
 
 **Multiple segment values per bin_id.** If the same `bin_id` appears with
 more than one `segment` value, each `(bin_id, segment)` pair is treated as a
@@ -117,12 +117,12 @@ return a dictionary with the following keys:
 
 | Key               | Type         | Shape / size                    | Description |
 |-------------------|--------------|---------------------------------|-------------|
-| `date_winner`     | `np.int16`   | `(n_bins, n_dates, n_pos)`      | Per-date plurality winner item index for each cell. `-1` = no data. |
+| `date_winner`     | `np.int32`   | `(n_bins, n_dates, n_pos)`      | Per-date plurality winner item index for each cell. `-1` = no data. |
 | `date_top_share`  | `np.float32` | `(n_bins, n_dates, n_pos)`      | Plurality winner's share of observations for that cell (0–1). |
 | `wt_bin_idx`      | `np.int32`   | `(n_nonzero,)`                  | Bin index for each non-zero `(bin, date, pos, item)` observation (sparse long format). |
 | `wt_date_idx`     | `np.int32`   | `(n_nonzero,)`                  | Date index — parallel to `wt_bin_idx`. |
 | `wt_pos_idx`      | `np.int32`   | `(n_nonzero,)`                  | Position index — parallel to `wt_bin_idx`. |
-| `wt_item_idx`     | `np.int16`   | `(n_nonzero,)`                  | Item index — parallel to `wt_bin_idx`. |
+| `wt_item_idx`     | `np.int32`   | `(n_nonzero,)`                  | Item index — parallel to `wt_bin_idx`. |
 | `wt_N_item`       | `np.int32`   | `(n_nonzero,)`                  | Observation count for this `(bin, date, pos, item)` entry. |
 | `bin_ranks`       | `np.int64`   | `(n_bins,)`                     | Global rank per bin. |
 | `bin_segments`    | `np.str_`    | `(n_bins,)`                     | Segment label per bin (the bin grouping attribute). |
