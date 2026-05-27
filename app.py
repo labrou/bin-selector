@@ -21,10 +21,11 @@ Data schema (uploaded CSV):
     Required columns: bin_id, date, position, item, bin_rank, segment
     Optional column:  N_item  (observation count for that item at that key;
                                defaults to 1 per row if absent)
-    One row per unique [bin_id, date, position, bin_rank, segment, item].
+    One row per unique [bin_id, date, position, segment, item].
     group_N (total observations per cell) is computed internally as
     sum(N_item) over all items sharing the same
-    [bin_id, date, position, bin_rank, segment] key.
+    [bin_id, date, position, segment] key.
+    bin_rank is bin-level metadata (same value for every row of a bin).
     Dates must be in M/D/YYYY format (single- or double-digit month/day).
 
 Aggregation methods
@@ -326,6 +327,13 @@ def load_user_data(file_bytes: bytes, filename: str):
     if _bad_rank:
         st.warning(f"{_bad_rank:,} row(s) had unparseable bin_rank values; they will be set to 0.")
         df['bin_rank'] = df['bin_rank'].fillna(0)
+    _frac_rank = (df['bin_rank'].notna() & (df['bin_rank'] != df['bin_rank'].round())).sum()
+    if _frac_rank:
+        st.warning(
+            f"{_frac_rank:,} row(s) had fractional bin_rank values; "
+            "they will be rounded to the nearest integer (e.g. 2.7 → 3)."
+        )
+        df['bin_rank'] = df['bin_rank'].round()
     df['bin_rank'] = df['bin_rank'].astype(int)
     df['position'] = pd.to_numeric(df['position'], errors='coerce')
     _bad_pos = df['position'].isna().sum()
@@ -342,7 +350,15 @@ def load_user_data(file_bytes: bytes, filename: str):
     df['position'] = df['position'].astype(int)
     # N_item is optional; default to 1 per row when absent or unparseable
     if 'N_item' in df.columns:
-        df['N_item'] = pd.to_numeric(df['N_item'], errors='coerce').fillna(1).astype(np.int32)
+        df['N_item'] = pd.to_numeric(df['N_item'], errors='coerce').fillna(1)
+        _frac_ni = (df['N_item'].notna() & (df['N_item'] != df['N_item'].round())).sum()
+        if _frac_ni:
+            st.warning(
+                f"{_frac_ni:,} row(s) had fractional N_item values; "
+                "they will be rounded to the nearest integer (e.g. 3.7 → 4)."
+            )
+            df['N_item'] = df['N_item'].round()
+        df['N_item'] = df['N_item'].astype(np.int32)
         _neg = (df['N_item'] < 0).sum()
         if _neg:
             st.warning(f"{_neg:,} row(s) had negative N_item values and were set to 0.")
@@ -728,8 +744,13 @@ def apply_url_params(dates, item_codes=None):
 
 def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, segments,
                   item_codes=None, bin_term='bin', method='Majority',
-                  weights_grid=None):
-    """Export the current view.  For Weighted, include per-item share columns."""
+                  weights_grid=None, colored_item_codes=None):
+    """Export the current view.
+
+    For Weighted, include one share_<item> column per colored item only
+    (capped to the distinctly-colored vocabulary to avoid CSV width explosion
+    on uploads with hundreds/thousands of unique items).
+    """
     if item_codes is None:
         item_codes = ITEMS
     n_bins, n_pos = items_grid.shape
@@ -748,12 +769,20 @@ def make_view_csv(bin_names, positions, items_grid, share_grid, ranks, segments,
         share_col:  np.round(share_grid.ravel().astype(float), 4),
     })
     if method == 'Weighted' and weights_grid is not None:
-        # Build all per-item share columns at once to avoid DataFrame fragmentation
+        # Only export share columns for the distinctly-colored items; exporting
+        # one column per item in a large vocabulary would produce an unmanageably
+        # wide CSV and consume significant memory.
+        export_items = colored_item_codes if colored_item_codes is not None else item_codes
+        item_to_idx  = {code: i for i, code in enumerate(item_codes)}
         wt_cols = {
-            f'share_{code}': np.round(weights_grid[:, :, i].ravel().astype(float), 4)
-            for i, code in enumerate(item_codes)
+            f'share_{code}': np.round(
+                weights_grid[:, :, item_to_idx[code]].ravel().astype(float), 4
+            )
+            for code in export_items
+            if code in item_to_idx
         }
-        base = pd.concat([base, pd.DataFrame(wt_cols, index=base.index)], axis=1)
+        if wt_cols:
+            base = pd.concat([base, pd.DataFrame(wt_cols, index=base.index)], axis=1)
     return base.to_csv(index=False).encode()
 
 
@@ -918,7 +947,8 @@ with st.sidebar:
         help=(
             "Required columns: bin_id, date, position, item, bin_rank, segment. "
             "Optional: N_item (observation count; defaults to 1 if absent). "
-            "One row per unique [bin_id, date, position, bin_rank, segment, item] combination."
+            "One row per unique [bin_id, date, position, segment, item] combination. "
+            "bin_rank is bin-level metadata, not part of the aggregation key."
         ),
         label_visibility="collapsed",
     )
@@ -1189,8 +1219,9 @@ Open the **sidebar** and upload a CSV with these columns:
 | `segment` | ✓ | Grouping / filter attribute |
 | `N_item` | optional | Observation count for this item. Defaults to 1 per row if absent. |
 
-One row per unique [bin\_id, date, position, bin\_rank, segment, **item**].
-`group_N` (total observations per cell) is computed internally as `sum(N_item)` across items sharing the same [bin\_id, date, position, bin\_rank, segment] key.
+One row per unique [bin\_id, date, position, segment, **item**].
+`group_N` (total observations per cell) is computed internally as `sum(N_item)` across items sharing the same [bin\_id, date, position, segment] key.
+`bin_rank` is bin-level metadata (one value per bin), not part of the aggregation key.
 """)
 
 
@@ -1671,6 +1702,7 @@ if st.session_state.get('_csv_sig') != _csv_sig:
         ranks_disp, segments_disp,
         item_codes=item_codes, bin_term=bin_term,
         method=method, weights_grid=weights_disp,
+        colored_item_codes=pill_items,
     )
     st.session_state['_csv_sig']      = _csv_sig
     st.session_state['_csv_bytes_dl'] = _new_csv

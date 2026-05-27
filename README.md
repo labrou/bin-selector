@@ -79,7 +79,7 @@ for the session.
 | `bin_id` | ✓ | String identifier for the bin; used as the display name |
 | `date` | ✓ | Format **M/D/YYYY** (month and day may be single-digit; year is 4 digits). Also accepts any format parseable by `pd.to_datetime`. |
 | `position` | ✓ | Integer rank within the bin (1-based or 0-based; both work) |
-| `item` | ✓ | Any string label. Item indices are stored as `int32`; up to ~2 billion unique values are supported (well beyond any practical limit). |
+| `item` | ✓ | Any string label. All unique items are retained and their real labels are always shown. Memory and computation scale with item count for the Weighted method (dense `B×P×items` array per view); datasets with hundreds of distinct items work well; thousands may be slow. |
 | `bin_rank` | ✓ | Global rank of the bin (integer; any range, including 0-based) |
 | `segment` | ✓ | Any string grouping / filter attribute; not restricted to a fixed set. Rename the display label via **Labels → Bin grouping attribute**. |
 | `N_item` | optional | Count of observations of this item for this `(bin_id, date, position, segment, item)` combination. **Defaults to 1 per row** when absent. |
@@ -134,7 +134,7 @@ return a dictionary with the following keys:
 **Design rationale.** `date_winner` / `date_top_share` are compact `(B, D, P)`
 arrays — pre-computing the per-date plurality winner at load time means M1
 and M2 aggregations require no per-item counting at interaction time, just
-`np.bincount` over a flat int16 array. The sparse `wt_*` long arrays support
+`np.bincount` over a flat int32 array. The sparse `wt_*` long arrays support
 the Weighted aggregation (M3) without materialising a full 4D `(B, D, P, I)`
 cube, which would be 15–40× larger in memory.
 
@@ -412,7 +412,7 @@ VARIOUS_IDX      = n_items   # sentinel item index used for M2 VARIOUS cells
 ### Section 3: Compute functions
 
 - `compute_plurality(date_winner_slice, n_items)` — vectorised `np.bincount`
-  over the `(B, D, P)` int16 winner array; returns `(winner, share)` arrays.
+  over the `(B, D, P)` int32 winner array; returns `(winner, share)` arrays.
 - `compute_abs_majority(date_winner_slice, date_top_share_slice, n_items, various_idx)` —
   applies the 50%-threshold rule to `date_top_share`; cells below threshold
   become `various_idx`. Returns `(winner, share)` arrays.
