@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aggregation Methods — Ranked Placement Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #F7F4ED;
+    --panel:    #FBFAF5;
+    --ink:      #1A1A1A;
+    --muted:    #6B6B6B;
+    --border:   #2A2A2A;
+    --apx:      #B91C1C;   /* red   */
+    --brt:      #1E3A8A;   /* blue  */
+    --cfd:      #15803D;   /* green */
+    --various:  #C2410C;   /* burnt-orange */
+    --other:    #9CA3AF;   /* gray  */
+    --cell:     36px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 48px 32px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  /* ── Page header ── */
+  .page-eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 36px;
+    line-height: 1.1;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+  }
+  .intro { color: #4A4A4A; max-width: 680px; margin-bottom: 36px; }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 48px;
+    padding: 14px 18px;
+    background: var(--panel);
+    border-left: 2px solid var(--border);
+  }
+  .legend-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-right: 8px;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 7px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  }
+  .swatch { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ── Section ── */
+  .method {
+    margin-bottom: 60px;
+  }
+  .method-header {
+    display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px;
+  }
+  .method-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); min-width: 56px;
+  }
+  h2 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px; font-weight: 500; letter-spacing: 0.02em;
+  }
+  .method-desc {
+    color: #3A3A3A; margin-bottom: 18px; max-width: 660px; padding-left: 68px;
+  }
+  .rule-box {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    background: var(--panel);
+    border-left: 3px solid var(--border);
+    padding: 10px 14px;
+    margin-left: 68px;
+    margin-bottom: 20px;
+    max-width: 580px;
+    color: var(--ink);
+    line-height: 1.7;
+  }
+  .rule-box .hl { font-weight: 500; }
+  .use-when {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    color: var(--muted); padding-left: 68px; margin-bottom: 24px;
+  }
+  .use-when strong { color: var(--ink); }
+
+  /* ── Observation table ── */
+  .obs-wrap { padding-left: 68px; margin-bottom: 28px; overflow-x: auto; }
+  .obs-caption {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+    margin-bottom: 8px;
+  }
+  table.obs {
+    border-collapse: collapse;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  }
+  table.obs th, table.obs td {
+    padding: 5px 14px; text-align: right;
+    border-bottom: 1px solid #E0DDD5;
+  }
+  table.obs th {
+    text-transform: uppercase; font-size: 10px; letter-spacing: 0.1em;
+    color: var(--muted); font-weight: 400; border-bottom: 1px solid var(--border);
+  }
+  table.obs td:first-child, table.obs th:first-child { text-align: left; }
+  table.obs tr.total-row td { font-weight: 500; border-top: 1px solid var(--border); }
+  table.obs .item-apx { color: var(--apx); font-weight: 500; }
+  table.obs .item-brt { color: var(--brt); font-weight: 500; }
+  table.obs .item-cfd { color: var(--cfd); font-weight: 500; }
+  .date-winner { font-weight: 500; }
+
+  /* ── Result cell ── */
+  .result-wrap { padding-left: 68px; margin-bottom: 28px; }
+  .result-row { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+  .res-cell {
+    width: var(--cell); height: var(--cell); border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    font-weight: 500; color: #fff; flex-shrink: 0;
+  }
+  .res-note {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);
+  }
+  .res-note strong { color: var(--ink); }
+
+  /* ── Mini comparison heatmap ── */
+  .comparison { margin-bottom: 60px; }
+  .comp-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 24px;
+    border-top: 1px solid #D0CCC2; padding-top: 20px;
+  }
+  .comp-grid {
+    display: flex; gap: 40px; flex-wrap: wrap; align-items: flex-start;
+  }
+  .mini-block { flex: 1; min-width: 220px; }
+  .mini-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    font-weight: 500; margin-bottom: 10px; color: var(--ink);
+  }
+  .mini-label .method-tag {
+    display: inline-block;
+    font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); margin-left: 6px; vertical-align: middle;
+  }
+  .heatmap {
+    display: inline-grid;
+    gap: 2px;
+    background: var(--bg);
+  }
+  .pos-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+    color: var(--muted); text-align: center;
+    display: flex; align-items: center; justify-content: center;
+    width: var(--cell); height: 18px;
+  }
+  .row-label-cell {
+    display: flex; align-items: center;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    color: var(--ink); white-space: nowrap;
+    padding-right: 8px; height: var(--cell);
+    width: 56px; justify-content: flex-end;
+  }
+  .hcell {
+    width: var(--cell); height: var(--cell);
+    border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+    font-weight: 500; color: rgba(255,255,255,0.9);
+  }
+  .hcell.no-data { background: var(--bg); color: var(--muted); }
+
+  .callout {
+    background: var(--panel);
+    border-left: 3px solid var(--various);
+    padding: 12px 16px;
+    margin-left: 68px;
+    margin-bottom: 20px;
+    max-width: 580px;
+    font-size: 13px;
+  }
+  .callout .callout-head {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--various); margin-bottom: 6px;
+  }
+
+  .formula {
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+    background: var(--panel); border: 1px solid #D0CCC2;
+    border-radius: 3px; padding: 10px 16px; display: inline-block;
+    margin: 8px 0; color: var(--ink);
+  }
+  .formula-wrap { padding-left: 68px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+
+<p class="page-eyebrow">Ranked Placement Atlas</p>
+<h1>Aggregation Methods</h1>
+<p class="intro">
+  When your data has <strong>multiple observations</strong> for the same
+  [bin, date, position, segment] — for example, the same slot measured by
+  several sources — the three methods offer different answers to:
+  <em>"Which item should represent this cell?"</em>
+  <br><br>
+  Each method has distinct strengths. This guide walks through each one using
+  the same worked example.
+</p>
+
+<div class="legend">
+  <span class="legend-label">items used below</span>
+  <span class="legend-item"><span class="swatch" style="background:var(--apx)"></span>APX</span>
+  <span class="legend-item"><span class="swatch" style="background:var(--brt)"></span>BRT</span>
+  <span class="legend-item"><span class="swatch" style="background:var(--cfd)"></span>CFD</span>
+  <span class="legend-item"><span class="swatch" style="background:var(--various)"></span>VARIOUS</span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     WORKED EXAMPLE — shared across all three methods
+══════════════════════════════════════════════════════════════════ -->
+
+<p style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.15em;
+   text-transform:uppercase;color:var(--muted);margin-bottom:12px;">
+  Worked example — one (bin, position) over 5 dates
+</p>
+
+<div class="obs-wrap" style="padding-left:0;margin-bottom:36px;">
+  <p class="obs-caption">Raw observations — what arrived from your data source</p>
+  <table class="obs">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th class="item-apx">APX</th>
+        <th class="item-brt">BRT</th>
+        <th class="item-cfd">CFD</th>
+        <th>group_N</th>
+        <th>Per-date winner</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>May 1</td>
+        <td class="item-apx">1</td><td class="item-brt">9</td><td class="item-cfd">0</td>
+        <td>10</td><td class="date-winner" style="color:var(--brt)">BRT (90 %)</td>
+      </tr>
+      <tr>
+        <td>May 8</td>
+        <td class="item-apx">1</td><td class="item-brt">9</td><td class="item-cfd">0</td>
+        <td>10</td><td class="date-winner" style="color:var(--brt)">BRT (90 %)</td>
+      </tr>
+      <tr>
+        <td>May 15</td>
+        <td class="item-apx">4</td><td class="item-brt">1</td><td class="item-cfd">0</td>
+        <td>5</td><td class="date-winner" style="color:var(--apx)">APX (80 %)</td>
+      </tr>
+      <tr>
+        <td>May 22</td>
+        <td class="item-apx">4</td><td class="item-brt">1</td><td class="item-cfd">0</td>
+        <td>5</td><td class="date-winner" style="color:var(--apx)">APX (80 %)</td>
+      </tr>
+      <tr>
+        <td>May 29</td>
+        <td class="item-apx">4</td><td class="item-brt">1</td><td class="item-cfd">0</td>
+        <td>5</td><td class="date-winner" style="color:var(--apx)">APX (80 %)</td>
+      </tr>
+      <tr class="total-row">
+        <td>Total</td>
+        <td class="item-apx">14</td><td class="item-brt">21</td><td class="item-cfd">0</td>
+        <td>35</td><td style="color:var(--muted);font-size:11px;font-style:italic;">
+          APX wins 3 dates; BRT 2 dates<br>BRT has 60 % of all obs.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     METHOD 1 — Majority
+══════════════════════════════════════════════════════════════════ -->
+<div class="method">
+  <div class="method-header">
+    <span class="method-num">M 1</span>
+    <h2>Majority</h2>
+  </div>
+  <p class="method-desc">
+    For each date, the item with the most observations is that date's
+    <em>plurality winner</em>. Across the selected date range, the item
+    that won the most dates is displayed. Ties are broken by the most-recent
+    date's winner, then by item order.
+  </p>
+  <div class="rule-box">
+    <span class="hl">Step 1</span> — per date: winner = argmax(N_item) for that date<br>
+    <span class="hl">Step 2</span> — cross-date: count wins per item; winner = highest count<br>
+    <span class="hl">Tiebreak</span> — prefer the most recent date's winner
+  </div>
+  <p class="use-when">
+    <strong>Use when</strong> — each date is an independent snapshot of equal importance
+    regardless of how many raw observations back it up. A date with 2 observations
+    carries the same weight as a date with 10.
+  </p>
+
+  <div class="obs-wrap">
+    <p class="obs-caption">Applying M1 to the example</p>
+    <table class="obs">
+      <thead>
+        <tr><th>Date</th><th>Per-date winner</th><th>Counts toward M1</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>May 1</td>  <td style="color:var(--brt)">BRT</td><td>+1 for BRT</td></tr>
+        <tr><td>May 8</td>  <td style="color:var(--brt)">BRT</td><td>+1 for BRT</td></tr>
+        <tr><td>May 15</td> <td style="color:var(--apx)">APX</td><td>+1 for APX</td></tr>
+        <tr><td>May 22</td> <td style="color:var(--apx)">APX</td><td>+1 for APX</td></tr>
+        <tr><td>May 29</td> <td style="color:var(--apx)">APX</td><td>+1 for APX</td></tr>
+        <tr class="total-row">
+          <td>Win count</td>
+          <td colspan="2">
+            <span style="color:var(--apx)">APX: 3</span> &nbsp;|&nbsp;
+            <span style="color:var(--brt)">BRT: 2</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="result-wrap">
+    <p class="obs-caption" style="margin-bottom:10px;">Result for this cell</p>
+    <div class="result-row">
+      <div class="res-cell" style="background:var(--apx)">APX</div>
+      <div class="res-note">
+        <strong>APX</strong> — won 3 of 5 dates (60 % of dates).<br>
+        Note: BRT had <em>more total observations</em> (21 vs 14) but fewer <em>date wins</em>.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     METHOD 2 — Abs. Majority
+══════════════════════════════════════════════════════════════════ -->
+<div class="method">
+  <div class="method-header">
+    <span class="method-num">M 2</span>
+    <h2>Abs. Majority</h2>
+  </div>
+  <p class="method-desc">
+    All observations across the date range are pooled. If one item holds
+    <strong>≥ 50 %</strong> of those pooled observations, it wins. If no item
+    clears that bar, the cell shows <strong style="color:var(--various)">VARIOUS</strong>
+    — a signal that no single item dominates.
+  </p>
+  <div class="rule-box">
+    <span class="hl">Aggregate</span> — pool all N_item across every date in the range<br>
+    <span class="hl">Check</span> — winner = item where sum(N_item) / sum(group_N) ≥ 0.50<br>
+    <span class="hl">Fallback</span> — no item qualifies → display <span style="color:var(--various)">VARIOUS</span>
+  </div>
+  <p class="use-when">
+    <strong>Use when</strong> — you want to surface only <em>clear majorities</em> and make
+    ambiguous cells visually explicit. VARIOUS tells you where the data is genuinely mixed.
+  </p>
+
+  <div class="obs-wrap">
+    <p class="obs-caption">Applying M2 to the example</p>
+    <table class="obs">
+      <thead>
+        <tr><th>Item</th><th>Total N_item</th><th>Share of 35 obs.</th><th>≥ 50 %?</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="item-apx">APX</td><td class="item-apx">14</td>
+          <td>40 %</td><td>✗</td>
+        </tr>
+        <tr>
+          <td class="item-brt">BRT</td><td class="item-brt">21</td>
+          <td>60 %</td><td>✓</td>
+        </tr>
+        <tr>
+          <td class="item-cfd">CFD</td><td class="item-cfd">0</td>
+          <td>0 %</td><td>✗</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="result-wrap">
+    <p class="obs-caption" style="margin-bottom:10px;">Result for this cell</p>
+    <div class="result-row">
+      <div class="res-cell" style="background:var(--brt)">BRT</div>
+      <div class="res-note">
+        <strong>BRT</strong> — holds 60 % of pooled observations (≥ 50 % threshold).<br>
+        M1 said APX; M2 corrects this by counting <em>raw observations</em>, not date wins.
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <p class="callout-head">When VARIOUS appears</p>
+    If the data were split 40 % APX · 35 % BRT · 25 % CFD, no item would cross 50 %.
+    The cell shows <strong style="color:var(--various)">VARIOUS</strong> with its own distinct
+    colour — meaning "the slot is genuinely contested; no single item dominates."
+    The hover tooltip still shows the top item's aggregate share for context.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     METHOD 3 — Weighted
+══════════════════════════════════════════════════════════════════ -->
+<div class="method">
+  <div class="method-header">
+    <span class="method-num">M 3</span>
+    <h2>Weighted</h2>
+  </div>
+  <p class="method-desc">
+    All observations across the date range are pooled, and each item's
+    <em>aggregate share</em> is computed. The item with the highest share
+    is displayed; the bar chart below the heatmap shows the full distribution
+    (average share per item per position, across all visible bins).
+  </p>
+  <div class="formula-wrap">
+    <div class="formula">
+      share(item) = sum(N_item, all dates) / sum(group_N, all dates)
+    </div>
+  </div>
+  <div class="rule-box">
+    <span class="hl">Aggregate</span> — pool raw counts; dates with more observations contribute more<br>
+    <span class="hl">Winner</span> — item with the highest aggregate share<br>
+    <span class="hl">Hover</span> — shows the winning item's exact aggregate share (the pct column)
+  </div>
+  <p class="use-when">
+    <strong>Use when</strong> — sample sizes vary across dates and you want each observation
+    to carry equal weight regardless of which date it came from. The bar chart becomes
+    a full weighted distribution, not a binary winner/loser count.
+  </p>
+
+  <div class="obs-wrap">
+    <p class="obs-caption">Applying M3 to the example</p>
+    <table class="obs">
+      <thead>
+        <tr><th>Item</th><th>Total N_item</th><th>Aggregate share</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="item-apx">APX</td><td class="item-apx">14</td>
+          <td>14 / 35 = <strong>40 %</strong></td>
+        </tr>
+        <tr>
+          <td class="item-brt">BRT</td><td class="item-brt">21</td>
+          <td>21 / 35 = <strong>60 %</strong></td>
+        </tr>
+        <tr>
+          <td class="item-cfd">CFD</td><td class="item-cfd">0</td>
+          <td>0 / 35 = <strong>0 %</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="result-wrap">
+    <p class="obs-caption" style="margin-bottom:10px;">Result for this cell</p>
+    <div class="result-row">
+      <div class="res-cell" style="background:var(--brt)">BRT</div>
+      <div class="res-note">
+        <strong>BRT</strong> — 60 % aggregate share (highest).<br>
+        Same winner as M2 here. The bar chart shows 40 % / 60 % distribution, not a binary count.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SIDE-BY-SIDE COMPARISON HEATMAP
+══════════════════════════════════════════════════════════════════ -->
+<div class="comparison">
+  <p class="comp-title">Side-by-side: the same four bins seen through each method</p>
+  <p style="color:#4A4A4A;max-width:680px;margin-bottom:28px;font-size:13px;">
+    The data below has three positions. Position 2 is where the methods can disagree.
+    Bins Alpha and Delta have clear consensus; Beta and Gamma are the interesting cases.
+  </p>
+
+  <div class="comp-grid">
+
+    <!-- ── M1 ── -->
+    <div class="mini-block">
+      <p class="mini-label">Majority <span class="method-tag">M1</span></p>
+      <!--
+        Positions: 1  2  3
+        Alpha:     APX APX APX   (clear)
+        Beta:      BRT APX CFD   (APX wins on 3/5 dates despite BRT having more total obs)
+        Gamma:     APX APX BRT   (APX wins on more dates)
+        Delta:     BRT BRT BRT   (clear)
+      -->
+      <div class="heatmap" style="grid-template-columns: 56px repeat(3, var(--cell));">
+        <!-- header row -->
+        <div></div>
+        <div class="pos-label">1</div>
+        <div class="pos-label">2</div>
+        <div class="pos-label">3</div>
+        <!-- Alpha -->
+        <div class="row-label-cell">Alpha</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <!-- Beta -->
+        <div class="row-label-cell">Beta</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="hcell" style="background:var(--cfd)">CFD</div>
+        <!-- Gamma -->
+        <div class="row-label-cell">Gamma</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <!-- Delta -->
+        <div class="row-label-cell">Delta</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+      </div>
+    </div>
+
+    <!-- ── M2 ── -->
+    <div class="mini-block">
+      <p class="mini-label">Abs. Majority <span class="method-tag">M2</span></p>
+      <!--
+        Beta pos-2:  APX 40%, BRT 35%, CFD 25% → VARIOUS (no item ≥50%)
+        Gamma pos-2: BRT 60% → BRT
+      -->
+      <div class="heatmap" style="grid-template-columns: 56px repeat(3, var(--cell));">
+        <div></div>
+        <div class="pos-label">1</div>
+        <div class="pos-label">2</div>
+        <div class="pos-label">3</div>
+        <div class="row-label-cell">Alpha</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="row-label-cell">Beta</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="hcell" style="background:var(--various)">VAR</div>
+        <div class="hcell" style="background:var(--cfd)">CFD</div>
+        <div class="row-label-cell">Gamma</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="row-label-cell">Delta</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+      </div>
+    </div>
+
+    <!-- ── M3 ── -->
+    <div class="mini-block">
+      <p class="mini-label">Weighted <span class="method-tag">M3</span></p>
+      <!--
+        Beta pos-2:  BRT 60% (highest share) → BRT
+        Gamma pos-2: BRT 60% → BRT
+      -->
+      <div class="heatmap" style="grid-template-columns: 56px repeat(3, var(--cell));">
+        <div></div>
+        <div class="pos-label">1</div>
+        <div class="pos-label">2</div>
+        <div class="pos-label">3</div>
+        <div class="row-label-cell">Alpha</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="row-label-cell">Beta</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="hcell" style="background:var(--cfd)">CFD</div>
+        <div class="row-label-cell">Gamma</div>
+        <div class="hcell" style="background:var(--apx)">APX</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="row-label-cell">Delta</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+        <div class="hcell" style="background:var(--brt)">BRT</div>
+      </div>
+    </div>
+
+  </div><!-- /comp-grid -->
+
+  <p style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);
+     margin-top:20px;max-width:720px;line-height:1.7;">
+    <strong style="color:var(--ink)">Beta · Position 2:</strong>
+    M1 → <span style="color:var(--apx)">APX</span> (won 3 of 5 dates) ·
+    M2 → <span style="color:var(--various)">VARIOUS</span> (no item ≥ 50 %) ·
+    M3 → <span style="color:var(--brt)">BRT</span> (60 % of pooled obs.)
+    <br>
+    <strong style="color:var(--ink)">Gamma · Position 2:</strong>
+    M1 → <span style="color:var(--apx)">APX</span> (date wins) ·
+    M2 + M3 → <span style="color:var(--brt)">BRT</span> (60 % pooled share ≥ 50 %)
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     WHEN TO USE WHICH
+══════════════════════════════════════════════════════════════════ -->
+<div style="margin-bottom:48px;">
+  <p style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.15em;
+     text-transform:uppercase;color:var(--muted);margin-bottom:16px;
+     border-top:1px solid #D0CCC2;padding-top:20px;">
+    Choosing the right method
+  </p>
+  <table class="obs" style="width:100%;max-width:760px;">
+    <thead>
+      <tr>
+        <th style="text-align:left;width:18%">Method</th>
+        <th style="text-align:left;width:38%">Best for</th>
+        <th style="text-align:left;width:44%">Watch out for</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Majority</strong></td>
+        <td>Treating each snapshot as an equal vote regardless of sample size</td>
+        <td>Can be skewed by many low-volume dates that all agree, while high-volume dates disagreeing are outvoted</td>
+      </tr>
+      <tr>
+        <td><strong>Abs. Majority</strong></td>
+        <td>Surfacing clear winners and flagging genuinely mixed cells as VARIOUS</td>
+        <td>The 50 % threshold means that in a 3-item universe, VARIOUS is common — not necessarily a sign of disorder</td>
+      </tr>
+      <tr>
+        <td><strong>Weighted</strong></td>
+        <td>Continuous item-share analysis; dates with more observations carry more weight</td>
+        <td>Winner is always shown even if the margin is tiny (1 % vs 0.9 %); bar chart is the richest view</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);">
+  Ranked Placement Atlas · Method Guide
+</p>
+
+</body>
+</html>
