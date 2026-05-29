@@ -1149,9 +1149,9 @@ else:
     _filter_bin_mask = None
     available_segments = sorted(np.unique(data['bin_segments']).tolist())
 
-_segment_sig = ','.join(available_filters) + '|' + ','.join(available_segments)
+_segment_sig = (_pre_filter or '') + '|' + ','.join(available_segments)
 if st.session_state.get('_segment_sig') != _segment_sig:
-    st.session_state.pop('segments_pills', None)
+    st.session_state['segments_pills'] = list(available_segments)
     st.session_state['_segment_sig'] = _segment_sig
 
 # Reset date/rank/pos sliders when the dataset changes so stale values
