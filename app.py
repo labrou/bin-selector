@@ -278,7 +278,8 @@ def load_user_data(file_bytes: bytes, filename: str):
 
     Required columns: bin_id, date, position, item, bin_rank, segment
     Optional columns: N_item (defaults to 1 per row if absent)
-                      filter (bin-level filter label; shown as single-select pills above segments)
+                      filter (row-level provenance label; rows with the same filter value form
+                              one independent dataset; shown as single-select pills in Row 1)
     Duplicate (bin, date, position, item) rows are summed before processing,
     so raw one-row-per-observation input works correctly.
     group_N is computed internally as sum(N_item) per
@@ -331,6 +332,13 @@ def load_user_data(file_bytes: bytes, filename: str):
             st.warning(f"{_null_f:,} row(s) had missing 'filter' values and will be dropped.")
             df = df[df['filter'].notna()]
         df['filter'] = df['filter'].astype(str)
+        filter_vals = sorted(df['filter'].unique().tolist())
+        n_filters   = len(filter_vals)
+        _fi_map     = {fv: i for i, fv in enumerate(filter_vals)}
+        df['_fi']   = df['filter'].map(_fi_map).astype(np.int32)
+    else:
+        filter_vals = []
+        n_filters   = 0
     df['bin_rank'] = pd.to_numeric(df['bin_rank'], errors='coerce')
     _bad_rank = df['bin_rank'].isna().sum()
     if _bad_rank:
@@ -413,51 +421,65 @@ def load_user_data(file_bytes: bytes, filename: str):
     df_v = df[valid_mask].copy()
     df_v['_ii'] = df_v['_ii'].astype(np.int32)
 
-    # Aggregate N_item: sum across any duplicate (bin, date, position, item) rows.
-    # This handles both pre-aggregated input (no-op when each key is unique) and
-    # raw one-row-per-observation input where N_item defaults to 1.
+    # Aggregate N_item: sum across duplicate rows within the same (bin, date, position,
+    # item[, filter]) key.  The filter dimension is kept separate so that rows from
+    # different provenances are never merged.
+    _agg_key = ['_bi', '_di', '_pi', '_ii'] + (['_fi'] if has_filter else [])
     df_v = (
-        df_v.groupby(['_bi', '_di', '_pi', '_ii'], as_index=False)['N_item'].sum()
+        df_v.groupby(_agg_key, as_index=False)['N_item'].sum()
     )
 
-    # Compute group_N: total N_item across all items for each (bin, date, position) cell
-    df_v['group_N'] = df_v.groupby(['_bi', '_di', '_pi'])['N_item'].transform('sum')
+    # group_N: total N_item across all items per (bin, date, position[, filter]) cell
+    _gn_key = ['_bi', '_di', '_pi'] + (['_fi'] if has_filter else [])
+    df_v['group_N'] = df_v.groupby(_gn_key)['N_item'].transform('sum')
 
     # ── date_winner / date_top_share ──────────────────────────────────────────
-    # Sort by N_item DESC then item index ASC within each cell so that the
-    # plurality winner (tie-break: lower item index) is always the first row.
-    df_sorted = df_v.sort_values(
-        ['_bi', '_di', '_pi', 'N_item', '_ii'],
-        ascending=[True, True, True, False, True],
-    )
-    winners = df_sorted.drop_duplicates(['_bi', '_di', '_pi'], keep='first')
+    # Sort by N_item DESC then item index ASC so the plurality winner (tie-break:
+    # lower item index) is always the first row after dedup.
+    _sort_cols = ['_bi', '_di', '_pi', 'N_item', '_ii']
+    _sort_asc  = [True, True, True, False, True]
 
-    date_winner    = np.full((n_bins, n_dates, n_pos), -1, dtype=np.int32)
-    date_top_share = np.zeros((n_bins, n_dates, n_pos), dtype=np.float32)
+    def _fill_winner_arrays(df_sub):
+        dw  = np.full((n_bins, n_dates, n_pos), -1, dtype=np.int32)
+        dts = np.zeros((n_bins, n_dates, n_pos), dtype=np.float32)
+        if len(df_sub) == 0:
+            return dw, dts
+        _s  = df_sub.sort_values(_sort_cols, ascending=_sort_asc)
+        _w  = _s.drop_duplicates(['_bi', '_di', '_pi'], keep='first')
+        _bw   = _w['_bi'].to_numpy(np.intp)
+        _dw_  = _w['_di'].to_numpy(np.intp)
+        _pw   = _w['_pi'].to_numpy(np.intp)
+        _iw   = _w['_ii'].to_numpy(np.int32)
+        _ni_w = _w['N_item'].to_numpy(np.int32)
+        _gn_w = _w['group_N'].to_numpy(np.int32)
+        _sh   = np.where(_gn_w > 0,
+                         _ni_w.astype(np.float32) / np.maximum(_gn_w, 1),
+                         np.float32(0))
+        dw[_bw, _dw_, _pw]  = _iw
+        dts[_bw, _dw_, _pw] = _sh.astype(np.float32)
+        _zg = _gn_w <= 0
+        if _zg.any():
+            dw[_bw[_zg], _dw_[_zg], _pw[_zg]] = -1
+        return dw, dts
 
-    _bw   = winners['_bi'].to_numpy(np.intp)
-    _dw   = winners['_di'].to_numpy(np.intp)
-    _pw   = winners['_pi'].to_numpy(np.intp)
-    _iw   = winners['_ii'].to_numpy(np.int32)
-    _ni_w = winners['N_item'].to_numpy(np.int32)
-    _gn_w = winners['group_N'].to_numpy(np.int32)
-    _sh   = np.where(_gn_w > 0,
-                     _ni_w.astype(np.float32) / np.maximum(_gn_w, 1),
-                     np.float32(0))
-
-    date_winner[_bw, _dw, _pw]    = _iw
-    date_top_share[_bw, _dw, _pw] = _sh.astype(np.float32)
-    # Cells with zero total observations have no valid winner
-    _zero_gn = _gn_w <= 0
-    if _zero_gn.any():
-        date_winner[_bw[_zero_gn], _dw[_zero_gn], _pw[_zero_gn]] = -1
+    if has_filter:
+        _dw_list, _dts_list = [], []
+        for _fi_i in range(n_filters):
+            _dw_i, _dts_i = _fill_winner_arrays(df_v[df_v['_fi'] == _fi_i])
+            _dw_list.append(_dw_i)
+            _dts_list.append(_dts_i)
+        date_winner_by_filter    = np.stack(_dw_list)    # (n_filters, n_bins, n_dates, n_pos)
+        date_top_share_by_filter = np.stack(_dts_list)
+        date_winner = date_top_share = None
+    else:
+        date_winner, date_top_share = _fill_winner_arrays(df_v)
+        date_winner_by_filter = date_top_share_by_filter = None
 
     # ── Sparse long arrays for Weighted ──────────────────────────────────────
-    _bin_meta_cols = ['bin_rank', 'segment'] + (['filter'] if has_filter else [])
     bin_meta = (
         df.drop_duplicates('bin_key')
         .set_index('bin_key')
-        .loc[bin_keys, _bin_meta_cols]
+        .loc[bin_keys, ['bin_rank', 'segment']]
     )
 
     # Warn if bin_rank is inconsistent for any bin (should be bin-level metadata)
@@ -472,20 +494,23 @@ def load_user_data(file_bytes: bytes, filename: str):
     _file_id = hashlib.md5(file_bytes).hexdigest()[:10]
 
     return {
-        'date_winner':    date_winner,
-        'date_top_share': date_top_share,
-        'wt_bin_idx':  df_v['_bi'].to_numpy(np.int32),
-        'wt_date_idx': df_v['_di'].to_numpy(np.int32),
-        'wt_pos_idx':  df_v['_pi'].to_numpy(np.int32),
-        'wt_item_idx': df_v['_ii'].to_numpy(np.int32),
-        'wt_N_item':   df_v['N_item'].to_numpy(np.int32),
+        'date_winner':              date_winner,
+        'date_top_share':           date_top_share,
+        'date_winner_by_filter':    date_winner_by_filter,
+        'date_top_share_by_filter': date_top_share_by_filter,
+        'wt_bin_idx':    df_v['_bi'].to_numpy(np.int32),
+        'wt_date_idx':   df_v['_di'].to_numpy(np.int32),
+        'wt_pos_idx':    df_v['_pi'].to_numpy(np.int32),
+        'wt_item_idx':   df_v['_ii'].to_numpy(np.int32),
+        'wt_N_item':     df_v['N_item'].to_numpy(np.int32),
+        'wt_filter_idx': df_v['_fi'].to_numpy(np.int32) if has_filter else None,
         'bin_ranks':    bin_meta['bin_rank'].to_numpy().astype(int),
         'bin_segments': bin_meta['segment'].to_numpy().astype(str),
-        'bin_filters':  bin_meta['filter'].to_numpy().astype(str) if has_filter else None,
         'bin_names':    np.array(bin_keys),
         'dates':        list(dates),
         'positions':    list(positions),
         'item_codes':   user_items,
+        'filter_values': filter_vals,
         '_id':          _file_id,
     }
 
@@ -586,12 +611,17 @@ def compute_abs_majority(date_winner_slice, date_top_share_slice, n_items, vario
 
 
 def compute_weighted(data, visible_bin_indices, date_start_idx, date_end_idx,
-                     pos_indices, n_items):
+                     pos_indices, n_items, filter_idx=None, date_winner_arr=None):
     """METHOD_3 — Weighted.
 
     Aggregate the sparse wt_* long arrays for the visible (bins × dates × positions).
     share[b, p, i] = sum_dates(N_item[b, :, p, i]) / sum_dates(group_N[b, :, p])
     Winner = item with highest aggregate share.
+
+    filter_idx     : int | None — when set, only sparse rows with wt_filter_idx == filter_idx
+                     are used (i.e. the selected provenance).
+    date_winner_arr: (n_bins, n_dates, n_pos) int32 | None — filter-specific dense array
+                     used for tiebreaking; falls back to data['date_winner'] when None.
 
     Returns: winner  (n_vis, n_pos_sel) int32,
              share   (n_vis, n_pos_sel) float32  (winner's aggregate share),
@@ -599,8 +629,9 @@ def compute_weighted(data, visible_bin_indices, date_start_idx, date_end_idx,
     """
     n_vis     = len(visible_bin_indices)
     n_pos_sel = len(pos_indices)
-    n_bins_t  = data['date_winner'].shape[0]
-    n_pos_t   = data['date_winner'].shape[2]
+    _dw_ref   = date_winner_arr if date_winner_arr is not None else data['date_winner']
+    n_bins_t  = _dw_ref.shape[0]
+    n_pos_t   = _dw_ref.shape[2]
 
     _empty = (np.full((n_vis, n_pos_sel), -1, dtype=np.int32),
               np.zeros((n_vis, n_pos_sel), dtype=np.float32),
@@ -609,6 +640,9 @@ def compute_weighted(data, visible_bin_indices, date_start_idx, date_end_idx,
     bi = data['wt_bin_idx'];  di = data['wt_date_idx']
     pi = data['wt_pos_idx'];  ii = data['wt_item_idx']
     ni = data['wt_N_item']
+    if filter_idx is not None and data.get('wt_filter_idx') is not None:
+        _fmask = data['wt_filter_idx'] == filter_idx
+        bi, di, pi, ii, ni = bi[_fmask], di[_fmask], pi[_fmask], ii[_fmask], ni[_fmask]
     if len(bi) == 0:
         return _empty
 
@@ -642,7 +676,7 @@ def compute_weighted(data, visible_bin_indices, date_start_idx, date_end_idx,
 
     # Tiebreak: when two items share the same max weight, prefer the most recent
     # date's winner — consistent with M1 and M2 behaviour.
-    recent_dw = data['date_winner'][visible_bin_indices, date_end_idx, :][:, pos_indices]
+    recent_dw = _dw_ref[visible_bin_indices, date_end_idx, :][:, pos_indices]
     # recent_dw shape: (n_vis, n_pos_sel)
     safe_recent = np.clip(recent_dw, 0, n_items - 1)
     b_range, p_range = np.indices((n_vis, n_pos_sel))
@@ -659,28 +693,38 @@ def compute_weighted(data, visible_bin_indices, date_start_idx, date_end_idx,
 
 
 def compute_view(data, visible_bin_indices, date_start_idx, date_end_idx,
-                 pos_indices, method, n_items, various_idx):
+                 pos_indices, method, n_items, various_idx,
+                 filter_idx=None, date_winner_arr=None, date_top_share_arr=None):
     """Dispatch to the appropriate compute function.
 
     For Majority / Abs. Majority: slices compact date_winner / date_top_share.
     For Weighted: aggregates sparse long arrays over the visible view.
+
+    filter_idx        : int | None  — active filter index (None = no filter column).
+    date_winner_arr   : (n_bins, n_dates, n_pos) int32 | None  — filter-specific array;
+                        falls back to data['date_winner'] when None.
+    date_top_share_arr: same shape, float32 | None.
 
     Returns (winner, share, weights_or_None)
       winner  : (n_vis, n_pos_sel) int32
       share   : (n_vis, n_pos_sel) float32
       weights : (n_vis, n_pos_sel, n_items) float32 | None
     """
+    _dw  = date_winner_arr    if date_winner_arr    is not None else data['date_winner']
+    _dts = date_top_share_arr if date_top_share_arr is not None else data['date_top_share']
+
     if method == 'Weighted':
         return compute_weighted(data, visible_bin_indices, date_start_idx, date_end_idx,
-                                pos_indices, n_items)
+                                pos_indices, n_items,
+                                filter_idx=filter_idx, date_winner_arr=_dw)
 
     # Compact slice: (n_vis, n_dates_sel, n_pos_sel) — much smaller than 4D counts
-    dw = data['date_winner'][visible_bin_indices,
-                             date_start_idx:date_end_idx + 1, :][:, :, pos_indices]
+    dw = _dw[visible_bin_indices,
+             date_start_idx:date_end_idx + 1, :][:, :, pos_indices]
 
     if method == 'Abs. Majority':
-        ds = data['date_top_share'][visible_bin_indices,
-                                   date_start_idx:date_end_idx + 1, :][:, :, pos_indices]
+        ds = _dts[visible_bin_indices,
+                  date_start_idx:date_end_idx + 1, :][:, :, pos_indices]
         w, s = compute_abs_majority(dw, ds, n_items, various_idx)
         return w, s, None
 
@@ -1023,7 +1067,7 @@ with st.sidebar:
     item_term    = st.text_input("Items are called",   "item",    key="item_term").strip()   or "item"
     segment_term = st.text_input(f"{bin_term.capitalize()} grouping attribute", "segment",
                                  key="segment_term").strip() or "segment"
-    if data.get('bin_filters') is not None:
+    if data.get('filter_values'):
         filter_term = st.text_input("Filter attribute", "filter",
                                     key="filter_term").strip() or "filter"
     else:
@@ -1088,7 +1132,7 @@ if st.session_state.get('_segment_sig') != _segment_sig:
     st.session_state.pop('segments_pills', None)
     st.session_state['_segment_sig'] = _segment_sig
 
-available_filters = sorted(np.unique(data['bin_filters']).tolist()) if data.get('bin_filters') is not None else []
+available_filters = list(data.get('filter_values') or [])
 
 _filter_sig = ','.join(available_filters)
 if st.session_state.get('_filter_sig') != _filter_sig:
@@ -1102,7 +1146,7 @@ _dataset_sig = (
     f"__{data['dates'][0].isoformat()}__{data['dates'][-1].isoformat()}"
     f"__{len(data['dates'])}"
     f"__{int(data['bin_ranks'].min())}__{int(data['bin_ranks'].max())}"
-    f"__{data['date_winner'].shape[2]}"   # n_positions
+    f"__{(data['date_winner_by_filter'].shape[3] if data.get('date_winner_by_filter') is not None else data['date_winner'].shape[2])}"   # n_positions
 )
 if st.session_state.get('_dataset_sig') != _dataset_sig:
     for _k in ('wk_slider', 'rank_slider', 'pos_slider'):
@@ -1152,7 +1196,8 @@ st.html(
 
 apply_url_params(data['dates'], item_codes)
 
-n_pos_total  = data['date_winner'].shape[2]
+_dw_shape    = data['date_winner_by_filter'].shape[1:] if data.get('date_winner_by_filter') is not None else data['date_winner'].shape
+n_pos_total  = _dw_shape[2]
 min_rank_val = int(data['bin_ranks'].min())
 max_rank_val = int(data['bin_ranks'].max())
 
@@ -1189,7 +1234,8 @@ across visible {bin_term}s at each position (interpretation varies by method).
 ### {filter_term.capitalize()} — Row 1 (optional)
 
 Shown only when your data has a `filter` column. One value is active at a time;
-selecting a different pill hides all {bin_term}s whose {filter_term} value does not match.
+selecting a pill switches the entire heatmap to the dataset defined by that filter value —
+only rows with that provenance label drive the cell colours, shares, and bar chart.
 Rename this label via **Labels → Filter attribute** in the sidebar.
 
 ---
@@ -1288,8 +1334,8 @@ def _show_method_guide():
 # ── Title ─────────────────────────────────────────────────────────────────────
 _title_col, _help_col = st.columns([9, 1])
 with _title_col:
-    n_bins_total  = data['date_winner'].shape[0]
-    n_dates_total = data['date_winner'].shape[1]
+    n_bins_total  = _dw_shape[0]
+    n_dates_total = _dw_shape[1]
     st.markdown(f"""
 <div class="title-block">
     <div class="title" style="font-family:{_title_font_css};font-style:{_title_font_style};">{_custom_title}</div>
@@ -1515,12 +1561,7 @@ st.divider()
 segments_active     = selected_segments   # empty list → no segment selected → zero bins
 in_segment          = np.isin(data['bin_segments'], segments_active) if segments_active else np.zeros(len(data['bin_segments']), dtype=bool)
 in_rank             = (data['bin_ranks'] >= rank_range[0]) & (data['bin_ranks'] <= rank_range[1])
-if available_filters and selected_filter is not None:
-    _filter_vals = [selected_filter] if isinstance(selected_filter, str) else list(selected_filter)
-    in_filter = np.isin(data['bin_filters'], _filter_vals) if _filter_vals else np.ones(len(data['bin_segments']), dtype=bool)
-else:
-    in_filter = np.ones(len(data['bin_segments']), dtype=bool)
-visible_mask        = in_segment & in_filter & in_rank
+visible_mask        = in_segment & in_rank
 visible_bin_indices = np.where(visible_mask)[0]
 
 date_start_idx = data['dates'].index(date_range[0])
@@ -1534,6 +1575,16 @@ if len(visible_bin_indices) == 0 or len(date_indices) == 0 or len(pos_indices) =
     st.stop()
 
 # ── Compute view (session-state cache) ─────────────────────────────────────
+# Resolve filter-specific dense arrays (None when no filter column is present).
+if available_filters and data.get('date_winner_by_filter') is not None:
+    _active_fi  = data['filter_values'].index(selected_filter)
+    _active_dw  = data['date_winner_by_filter'][_active_fi]
+    _active_dts = data['date_top_share_by_filter'][_active_fi]
+else:
+    _active_fi  = None
+    _active_dw  = data.get('date_winner')
+    _active_dts = data.get('date_top_share')
+
 # M1/M2: slices compact (B,D,P) arrays — sub-millisecond even without cache.
 # M3: aggregates sparse long arrays; cache avoids re-filtering on sort/highlight.
 _view_sig = (
@@ -1542,11 +1593,13 @@ _view_sig = (
     date_start_idx, date_end_idx,
     tuple(pos_indices),
     method, n_items,
+    selected_filter,
 )
 if st.session_state.get('_view_sig') != _view_sig:
     majority_view, share_view, weights_view = compute_view(
         data, visible_bin_indices, date_start_idx, date_end_idx,
         pos_indices, method, n_items, VARIOUS_IDX,
+        filter_idx=_active_fi, date_winner_arr=_active_dw, date_top_share_arr=_active_dts,
     )
     st.session_state.update({
         '_view_sig':  _view_sig,

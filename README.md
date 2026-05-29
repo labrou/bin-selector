@@ -82,12 +82,12 @@ for the session.
 | `item` | ✓ | Any string label. All unique items are retained and their real labels are always shown. Memory and computation scale with item count for the Weighted method (dense `B×P×items` array per view); datasets with hundreds of distinct items work well; thousands may be slow. |
 | `bin_rank` | ✓ | Global rank of the bin (integer; any range, including 0-based) |
 | `segment` | ✓ | Any string grouping / filter attribute; not restricted to a fixed set. Rename the display label via **Labels → Bin grouping attribute**. |
-| `filter` | optional | Bin-level filter label. When present, a row of single-select pills is shown at the top of the UI (above the segments row); selecting a value hides all bins whose filter value does not match. |
+| `filter` | optional | Row-level provenance label. Use this to tag rows from different source files before concatenating them into one upload. All distinct values appear as pills; selecting one restricts the heatmap to rows that carry that label. Rename the display label via **Labels → Filter attribute**. |
 | `N_item` | optional | Count of observations of this item for this `(bin_id, date, position, segment, item)` combination. **Defaults to 1 per row** when absent. |
 
-`group_N` (total observations per cell across all items) is **computed internally** as `sum(N_item)` over all item rows sharing the same `(bin_id, date, position, segment)` key. `bin_rank` is bin-level metadata (one value per bin) and is not part of the aggregation key. You do not need to include `group_N` in the file.
+`group_N` (total observations per cell across all items) is **computed internally** as `sum(N_item)` over all item rows sharing the same `(bin_id, date, position, segment)` key (plus `filter`, when the column is present). `bin_rank` is bin-level metadata (one value per bin) and is not part of the aggregation key. You do not need to include `group_N` in the file.
 
-**Duplicate rows are aggregated automatically.** If the same `(bin_id, date, position, segment, item)` key appears on multiple rows, their `N_item` values are summed before any processing. This means you can upload raw one-row-per-observation data (omitting `N_item`, so it defaults to 1) and the app will count correctly. Pre-aggregating to one row per key reduces file size but is not required.
+**Duplicate rows are aggregated automatically.** If the same `(bin_id, date, position, segment, item)` key (plus `filter`, when present) appears on multiple rows, their `N_item` values are summed before any processing. This means you can upload raw one-row-per-observation data (omitting `N_item`, so it defaults to 1) and the app will count correctly. Pre-aggregating to one row per key reduces file size but is not required.
 
 There is no practical limit on the number of distinct items. All items are kept; only the top 10 by total frequency receive a distinct colour — the rest are shown in gray.
 
@@ -125,9 +125,12 @@ return a dictionary with the following keys:
 | `wt_pos_idx`      | `np.int32`   | `(n_nonzero,)`                  | Position index — parallel to `wt_bin_idx`. |
 | `wt_item_idx`     | `np.int32`   | `(n_nonzero,)`                  | Item index — parallel to `wt_bin_idx`. |
 | `wt_N_item`       | `np.int32`   | `(n_nonzero,)`                  | Observation count for this `(bin, date, pos, item)` entry. |
+| `wt_filter_idx`   | `np.int32` \| `None` | `(n_nonzero,)` or `None`  | Filter index — parallel to `wt_bin_idx`; `None` when the `filter` column is absent. |
+| `date_winner_by_filter` | `np.int32` \| `None` | `(n_filters, n_bins, n_dates, n_pos)` or `None` | Per-filter-value plurality winner arrays; replaces `date_winner` when the `filter` column is present. |
+| `date_top_share_by_filter` | `np.float32` \| `None` | `(n_filters, n_bins, n_dates, n_pos)` or `None` | Per-filter-value top-share arrays; replaces `date_top_share` when the `filter` column is present. |
+| `filter_values`   | `list[str]`  | `n_filters` entries             | Sorted list of distinct filter labels; empty list when the `filter` column is absent. |
 | `bin_ranks`       | `np.int64`   | `(n_bins,)`                     | Global rank per bin. |
 | `bin_segments`    | `np.str_`    | `(n_bins,)`                     | Segment label per bin (the bin grouping attribute). |
-| `bin_filters`     | `np.str_` \| `None` | `(n_bins,)` or `None`     | Filter label per bin; `None` when the `filter` column is absent from the upload. |
 | `bin_names`       | `np.str_`    | `(n_bins,)`                     | Display name per bin (used on y-axis). |
 | `dates`           | `list[date]` | `n_dates` entries               | Date stamps from oldest to most recent. |
 | `item_codes`      | `list[str]`  | `n_items` entries               | All item labels, frequency-ordered for uploaded data. |
@@ -205,11 +208,14 @@ The controls are arranged above the chart (plus a cell-size / export row below t
 ### Row 1 — Filters
 
 **Filter** (optional) · Shown only when the uploaded data contains a `filter` column.
-Displays all distinct filter values as pills with no cap on the number of values.
-Exactly one value is active at a time (no **all** / **none** buttons); selecting a
-pill hides every bin whose `filter` value does not match. Absent when using the
-synthetic dataset or when the CSV has no `filter` column. When present, this is the
-leftmost column of Row 1. Rename the pill header via **Labels → Filter attribute**.
+Displays all distinct filter values as pills; exactly one value is active at a time
+(no **all** / **none** buttons). Selecting a pill restricts the entire heatmap —
+colours, shares, and bar chart — to rows whose `filter` value matches the selection.
+The intended use case is concatenating multiple files of the same structure but different
+provenance: add a `filter` column to tag each row's source, upload one combined file,
+and switch between provenances using the pills. Absent when using the synthetic dataset
+or when the CSV has no `filter` column. When present, this is the leftmost column of
+Row 1. Rename the pill header via **Labels → Filter attribute**.
 
 **`<region_term>`s** · Toggleable pills showing all values of the bin's grouping
 attribute. Default: all selected. Filtering hides bins whose grouping value is
