@@ -1123,7 +1123,7 @@ else:
 
 _item_sig = ','.join(pill_items)
 if st.session_state.get('_item_sig') != _item_sig:
-    st.session_state.pop('items_pills', None)
+    st.session_state['items_pills'] = list(pill_items)
     st.session_state['_item_sig'] = _item_sig
 
 available_filters = list(data.get('filter_values') or [])
@@ -1164,13 +1164,14 @@ _dataset_sig = (
     f"__{(data['date_winner_by_filter'].shape[3] if data.get('date_winner_by_filter') is not None else data['date_winner'].shape[2])}"   # n_positions
 )
 if st.session_state.get('_dataset_sig') != _dataset_sig:
-    for _k in ('wk_slider', 'rank_slider', 'pos_slider', 'items_pills'):
+    for _k in ('wk_slider', 'rank_slider', 'pos_slider'):
         st.session_state.pop(_k, None)
+    st.session_state['items_pills'] = list(pill_items)
     st.session_state['_dataset_sig'] = _dataset_sig
 
 _items_sig = (_pre_filter or '') + '|' + ','.join(pill_items)
 if st.session_state.get('_items_sig') != _items_sig:
-    st.session_state.pop('items_pills', None)
+    st.session_state['items_pills'] = list(pill_items)
     st.session_state['_items_sig'] = _items_sig
 
 _pill_colors   = [item_colors[item_codes.index(it)] for it in pill_items]
