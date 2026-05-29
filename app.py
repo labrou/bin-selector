@@ -1041,7 +1041,8 @@ with st.sidebar:
             _valid_item_set = set(user_data['item_codes'])
             _filtered = [it for it in _candidate_colored if it in _valid_item_set]
             colored_items = _filtered if _filtered else user_data['item_codes'][:N_MAX_USER_ITEMS]
-            n_b, n_d, n_p = data['date_winner'].shape
+            _dw_any = data['date_winner'] if data['date_winner'] is not None else data['date_winner_by_filter'][0]
+            n_b, n_d, n_p = _dw_any.shape
             n_it = len(data['item_codes'])
             st.success(
                 f"{uploaded.name}\n\n"
