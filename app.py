@@ -1168,7 +1168,7 @@ if st.session_state.get('_dataset_sig') != _dataset_sig:
         st.session_state.pop(_k, None)
     st.session_state['_dataset_sig'] = _dataset_sig
 
-_items_sig = ','.join(pill_items)
+_items_sig = (_pre_filter or '') + '|' + ','.join(pill_items)
 if st.session_state.get('_items_sig') != _items_sig:
     st.session_state.pop('items_pills', None)
     st.session_state['_items_sig'] = _items_sig
@@ -1239,7 +1239,35 @@ across visible {bin_term}s at each position (interpretation varies by method).
 
 ---
 
-### Method — Row 1
+### {filter_term.capitalize()} — Row 1 (optional, leftmost)
+
+Shown only when your data has a `filter` column. One value is active at a time;
+selecting a pill restricts the heatmap to rows with that provenance label — only
+those rows drive cell colours, shares, and the bar chart. Bins that carry no data
+for the selected value are hidden. Rename this label via **Labels → Filter attribute**.
+
+---
+
+### {segment_term.capitalize()}s — Row 1
+
+Toggleable pills. All values are selected by default; deselecting one hides every
+{bin_term} whose {segment_term} is not selected. Use **all** / **none** buttons to
+select or clear in bulk. When a filter is active, only segments present in that
+filter's data are shown.
+
+---
+
+### {item_term.capitalize()}s — Row 1
+
+Toggleable pills. All items are selected by default; controls *highlighting*, not
+filtering. Deselected items are dimmed; selecting **none** dims all items.
+Gray items (beyond the top-10 distinct colours) are always visible at full colour
+in the heatmap but are not shown as pills. Use **all** / **none** buttons to
+select or clear in bulk.
+
+---
+
+### Method — Row 1 (rightmost)
 
 | Method | What it does |
 |---|---|
@@ -1248,24 +1276,6 @@ across visible {bin_term}s at each position (interpretation varies by method).
 | **Weighted** | Pools all observations across the date range; item share = total N\_item ÷ total group\_N. Winner = highest share. |
 
 [Visual guide to all methods →]({METHOD_GUIDE_URL})
-
----
-
-### {filter_term.capitalize()} — Row 1 (optional)
-
-Shown only when your data has a `filter` column. One value is active at a time;
-selecting a pill switches the entire heatmap to the dataset defined by that filter value —
-only rows with that provenance label drive the cell colours, shares, and bar chart.
-Rename this label via **Labels → Filter attribute** in the sidebar.
-
----
-
-### Filters — Row 1
-
-**{segment_term.capitalize()}s** · Toggleable pills. Selecting a subset hides {bin_term}s whose {segment_term} is not selected.
-
-**{item_term.capitalize()}s** · Toggleable pills. Controls *highlighting*, not filtering —
-all {item_term}s remain visible but unselected ones are dimmed.
 
 ---
 
@@ -1666,7 +1676,7 @@ n_show_pos  = len(pos_indices)
 
 # ── Colorscale ────────────────────────────────────────────────────────────────
 sel_idx_set = set(item_codes.index(i) for i in selected_items) if selected_items else set()
-all_or_none = (len(sel_idx_set) == 0) or (len(sel_idx_set) >= n_pill_items)
+all_or_none = len(sel_idx_set) >= n_pill_items  # empty = nothing highlighted (not "all")
 
 def effective_color(i):
     if item_colors[i] == OTHER_COLOR:
