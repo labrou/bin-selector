@@ -277,7 +277,8 @@ def load_user_data(file_bytes: bytes, filename: str):
     and sparse long arrays for the Weighted method.
 
     Required columns: bin_id, date, position, item, bin_rank, segment
-    Optional column:  N_item (defaults to 1 per row if absent)
+    Optional columns: N_item (defaults to 1 per row if absent)
+                      filter (bin-level filter label; shown as single-select pills above segments)
     Duplicate (bin, date, position, item) rows are summed before processing,
     so raw one-row-per-observation input works correctly.
     group_N is computed internally as sum(N_item) per
@@ -295,6 +296,8 @@ def load_user_data(file_bytes: bytes, filename: str):
     if missing:
         st.error(f"CSV is missing columns: {', '.join(sorted(missing))}")
         return None
+
+    has_filter = 'filter' in df.columns
 
     # Date: parse as M/D/YYYY (single- or double-digit month/day, 4-digit year).
     _raw_dates = df['date'].astype(str)
@@ -322,6 +325,12 @@ def load_user_data(file_bytes: bytes, filename: str):
     df['item']     = df['item'].astype(str)
     df['bin_id']   = df['bin_id'].astype(str)
     df['segment']  = df['segment'].astype(str)
+    if has_filter:
+        _null_f = df['filter'].isna().sum()
+        if _null_f:
+            st.warning(f"{_null_f:,} row(s) had missing 'filter' values and will be dropped.")
+            df = df[df['filter'].notna()]
+        df['filter'] = df['filter'].astype(str)
     df['bin_rank'] = pd.to_numeric(df['bin_rank'], errors='coerce')
     _bad_rank = df['bin_rank'].isna().sum()
     if _bad_rank:
@@ -444,10 +453,11 @@ def load_user_data(file_bytes: bytes, filename: str):
         date_winner[_bw[_zero_gn], _dw[_zero_gn], _pw[_zero_gn]] = -1
 
     # ── Sparse long arrays for Weighted ──────────────────────────────────────
+    _bin_meta_cols = ['bin_rank', 'segment'] + (['filter'] if has_filter else [])
     bin_meta = (
         df.drop_duplicates('bin_key')
         .set_index('bin_key')
-        .loc[bin_keys, ['bin_rank', 'segment']]
+        .loc[bin_keys, _bin_meta_cols]
     )
 
     # Warn if bin_rank is inconsistent for any bin (should be bin-level metadata)
@@ -471,6 +481,7 @@ def load_user_data(file_bytes: bytes, filename: str):
         'wt_N_item':   df_v['N_item'].to_numpy(np.int32),
         'bin_ranks':    bin_meta['bin_rank'].to_numpy().astype(int),
         'bin_segments': bin_meta['segment'].to_numpy().astype(str),
+        'bin_filters':  bin_meta['filter'].to_numpy().astype(str) if has_filter else None,
         'bin_names':    np.array(bin_keys),
         'dates':        list(dates),
         'positions':    list(positions),
@@ -1072,6 +1083,13 @@ if st.session_state.get('_segment_sig') != _segment_sig:
     st.session_state.pop('segments_pills', None)
     st.session_state['_segment_sig'] = _segment_sig
 
+available_filters = sorted(np.unique(data['bin_filters']).tolist()) if data.get('bin_filters') is not None else []
+
+_filter_sig = ','.join(available_filters)
+if st.session_state.get('_filter_sig') != _filter_sig:
+    st.session_state.pop('filter_pills', None)
+    st.session_state['_filter_sig'] = _filter_sig
+
 # Reset date/rank/pos sliders when the dataset changes so stale values
 # from a previous dataset (e.g. synthetic dates) don't crash list.index().
 _dataset_sig = (
@@ -1163,6 +1181,13 @@ across visible {bin_term}s at each position (interpretation varies by method).
 
 ---
 
+### Filter row (above Row 1, optional)
+
+Shown only when your data has a `filter` column. One value is active at a time;
+selecting a different pill hides all {bin_term}s whose filter value does not match.
+
+---
+
 ### Filters — Row 1
 
 **{segment_term.capitalize()}s** · Toggleable pills. Selecting a subset hides {bin_term}s whose {segment_term} is not selected.
@@ -1217,6 +1242,7 @@ Open the **sidebar** and upload a CSV with these columns:
 | `item` | ✓ | Any string label |
 | `bin_rank` | ✓ | Global rank of the {bin_term} |
 | `segment` | ✓ | Grouping / filter attribute |
+| `filter` | optional | Bin-level filter label; shown as single-select pills above the segments row. |
 | `N_item` | optional | Observation count for this item. Defaults to 1 per row if absent. |
 
 One row per unique [bin\_id, date, position, segment, **item**].
@@ -1270,6 +1296,33 @@ with _help_col:
     st.write("")
     if st.button("User guide", key="help_btn"):
         _show_user_guide()
+
+# ── Filter row (only rendered when the data has a 'filter' column) ────────────
+# Change _FILTER_SELECTION_MODE to "multi" to allow multiple simultaneous selections.
+_FILTER_SELECTION_MODE = "single"
+
+if available_filters:
+    if 'filter_pills' not in st.session_state or st.session_state['filter_pills'] not in available_filters:
+        st.session_state['filter_pills'] = available_filters[0]
+
+    _fhdr_col, _ = st.columns([2, 10], gap="small")
+    with _fhdr_col:
+        st.markdown(
+            f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
+            f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
+            f'margin:0;padding-top:5px;">Filter</p>',
+            unsafe_allow_html=True,
+        )
+    selected_filter = st.pills(
+        "Filter",
+        available_filters,
+        selection_mode=_FILTER_SELECTION_MODE,
+        key="filter_pills",
+        label_visibility="collapsed",
+    ) or available_filters[0]
+    st.divider()
+else:
+    selected_filter = None
 
 # ── Row 1: Segments · Items · Method ──────────────────────────────────────────
 col_segments, col_items, col_method = st.columns(3)
@@ -1456,7 +1509,12 @@ st.divider()
 segments_active     = selected_segments   # empty list → no segment selected → zero bins
 in_segment          = np.isin(data['bin_segments'], segments_active) if segments_active else np.zeros(len(data['bin_segments']), dtype=bool)
 in_rank             = (data['bin_ranks'] >= rank_range[0]) & (data['bin_ranks'] <= rank_range[1])
-visible_mask        = in_segment & in_rank
+if available_filters and selected_filter is not None:
+    _filter_vals = [selected_filter] if isinstance(selected_filter, str) else list(selected_filter)
+    in_filter = np.isin(data['bin_filters'], _filter_vals) if _filter_vals else np.ones(len(data['bin_segments']), dtype=bool)
+else:
+    in_filter = np.ones(len(data['bin_segments']), dtype=bool)
+visible_mask        = in_segment & in_filter & in_rank
 visible_bin_indices = np.where(visible_mask)[0]
 
 date_start_idx = data['dates'].index(date_range[0])

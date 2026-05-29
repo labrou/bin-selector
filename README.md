@@ -82,6 +82,7 @@ for the session.
 | `item` | ✓ | Any string label. All unique items are retained and their real labels are always shown. Memory and computation scale with item count for the Weighted method (dense `B×P×items` array per view); datasets with hundreds of distinct items work well; thousands may be slow. |
 | `bin_rank` | ✓ | Global rank of the bin (integer; any range, including 0-based) |
 | `segment` | ✓ | Any string grouping / filter attribute; not restricted to a fixed set. Rename the display label via **Labels → Bin grouping attribute**. |
+| `filter` | optional | Bin-level filter label. When present, a row of single-select pills is shown at the top of the UI (above the segments row); selecting a value hides all bins whose filter value does not match. |
 | `N_item` | optional | Count of observations of this item for this `(bin_id, date, position, segment, item)` combination. **Defaults to 1 per row** when absent. |
 
 `group_N` (total observations per cell across all items) is **computed internally** as `sum(N_item)` over all item rows sharing the same `(bin_id, date, position, segment)` key. `bin_rank` is bin-level metadata (one value per bin) and is not part of the aggregation key. You do not need to include `group_N` in the file.
@@ -126,6 +127,7 @@ return a dictionary with the following keys:
 | `wt_N_item`       | `np.int32`   | `(n_nonzero,)`                  | Observation count for this `(bin, date, pos, item)` entry. |
 | `bin_ranks`       | `np.int64`   | `(n_bins,)`                     | Global rank per bin. |
 | `bin_segments`    | `np.str_`    | `(n_bins,)`                     | Segment label per bin (the bin grouping attribute). |
+| `bin_filters`     | `np.str_` \| `None` | `(n_bins,)` or `None`     | Filter label per bin; `None` when the `filter` column is absent from the upload. |
 | `bin_names`       | `np.str_`    | `(n_bins,)`                     | Display name per bin (used on y-axis). |
 | `dates`           | `list[date]` | `n_dates` entries               | Date stamps from oldest to most recent. |
 | `item_codes`      | `list[str]`  | `n_items` entries               | All item labels, frequency-ordered for uploaded data. |
@@ -198,8 +200,15 @@ interaction.
 
 ## Controls reference
 
-The controls are arranged in three rows above the chart, plus a cell-size /
-export row below the view summary.
+The controls are arranged above the chart (plus a cell-size / export row below the view summary).
+
+### Filter row (optional, above Row 1)
+
+Shown only when the uploaded data contains a `filter` column. Displays all distinct
+filter values as pills. Exactly one value is active at a time (no **all** / **none**
+buttons); selecting a pill hides every bin whose `filter` value does not match.
+The row is absent when using the synthetic dataset or when the CSV has no `filter`
+column.
 
 ### Row 1 — Filters
 
@@ -445,18 +454,19 @@ on every interaction:
 4. Derive `item_colors` from the colour-selection; define `pill_items`.
 5. JS injection for pill button colours.
 6. Title block + **User guide** button (`@st.dialog`).
-7. **Row 1:** Regions pills + Items pills + **Method** pills, each with
+7. **Filter row** (conditional): single-select pills for the `filter` column when present.
+8. **Row 1:** Regions pills + Items pills + **Method** pills, each with
    all/none buttons where applicable.
-8. **Row 2:** Date range, bin rank range, position range sliders.
-9. **Row 3:** Sort mode radio.
-10. Session-state `_view_sig` cache check → `compute_view` (only when
+9. **Row 2:** Date range, bin rank range, position range sliders.
+10. **Row 3:** Sort mode radio.
+11. Session-state `_view_sig` cache check → `compute_view` (only when
     dataset, visible bins, date range, position set, method, or item count
     changes; skipped on sort/highlight/cell_size interactions).
-11. Filter pipeline → sort → build colorscale.
-12. View summary block + colour legend.
-13. Heatmap + marginal bar subplot → `st.plotly_chart`.
-14. Cell size slider + Auto-fit checkbox + Download CSV/HTML buttons.
-15. Drill-down selectbox for per-bin time-series heatmap.
+12. Filter pipeline → sort → build colorscale.
+13. View summary block + colour legend.
+14. Heatmap + marginal bar subplot → `st.plotly_chart`.
+15. Cell size slider + Auto-fit checkbox + Download CSV/HTML buttons.
+16. Drill-down selectbox for per-bin time-series heatmap.
 
 ### Performance cache
 
