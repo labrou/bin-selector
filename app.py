@@ -854,8 +854,8 @@ st.set_page_config(
 )
 
 _custom_bg      = st.session_state.get('bg_color', BG) or BG
-_title_font_key = st.session_state.get('title_font', 'Fraunces')
-_title_font_css, _title_font_style = TITLE_FONTS.get(_title_font_key, TITLE_FONTS['Fraunces'])
+_title_font_key = st.session_state.get('title_font', 'IBM Plex Sans')
+_title_font_css, _title_font_style = TITLE_FONTS.get(_title_font_key, TITLE_FONTS['IBM Plex Sans'])
 _custom_title   = st.session_state.get('custom_title', '') or 'Ranked Placement Atlas'
 
 st.markdown(f"""
@@ -1153,6 +1153,11 @@ if st.session_state.get('_dataset_sig') != _dataset_sig:
     for _k in ('wk_slider', 'rank_slider', 'pos_slider'):
         st.session_state.pop(_k, None)
     st.session_state['_dataset_sig'] = _dataset_sig
+
+_items_sig = ','.join(pill_items)
+if st.session_state.get('_items_sig') != _items_sig:
+    st.session_state.pop('items_pills', None)
+    st.session_state['_items_sig'] = _items_sig
 
 _pill_colors   = [item_colors[item_codes.index(it)] for it in pill_items]
 _n_gray        = n_items - len(pill_items)
@@ -1670,7 +1675,7 @@ colorscale.append([(n_items + 1) / _N, VARIOUS_COLOR])
 colorscale.append([1.0,               VARIOUS_COLOR])
 
 # ── Sizing ────────────────────────────────────────────────────────────────────
-cell_size = st.session_state.get('cell_sz', 12)
+cell_size = st.session_state.get('cell_sz', 28)
 auto_fit  = st.session_state.get('auto_fit_cb', True)
 
 container_w, container_h = 900, 720
@@ -2129,7 +2134,7 @@ if drill_bin != _no_sel:
             ))
 
             mini_cell_w = max(10, min(30, 700 // max(len(date_indices), 1)))
-            mini_cell_h = max(6,  min(20, 400 // max(n_show_pos, 1)))
+            mini_cell_h = max(9,  min(30, 600 // max(n_show_pos, 1)))
             mini_w = int(len(date_indices) * mini_cell_w) + 80
             mini_h = int(n_show_pos       * mini_cell_h) + 60
 
