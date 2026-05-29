@@ -1126,19 +1126,33 @@ if st.session_state.get('_item_sig') != _item_sig:
     st.session_state.pop('items_pills', None)
     st.session_state['_item_sig'] = _item_sig
 
-available_segments = sorted(np.unique(data['bin_segments']).tolist())
-
-_segment_sig = ','.join(available_segments)
-if st.session_state.get('_segment_sig') != _segment_sig:
-    st.session_state.pop('segments_pills', None)
-    st.session_state['_segment_sig'] = _segment_sig
-
 available_filters = list(data.get('filter_values') or [])
 
 _filter_sig = ','.join(available_filters)
 if st.session_state.get('_filter_sig') != _filter_sig:
     st.session_state.pop('filter_pills', None)
     st.session_state['_filter_sig'] = _filter_sig
+
+# Determine active filter now (before available_segments) so that segment
+# pills and visible bins are restricted to only the bins that carry that
+# filter value. Different provenances may have completely disjoint bin sets.
+if available_filters and data.get('date_winner_by_filter') is not None:
+    _pre_filter = st.session_state.get('filter_pills')
+    if _pre_filter not in available_filters:
+        _pre_filter = available_filters[0]
+    _pre_fi = data['filter_values'].index(_pre_filter)
+    _filter_bin_mask = np.any(data['date_winner_by_filter'][_pre_fi] >= 0, axis=(1, 2))
+    available_segments = sorted(np.unique(data['bin_segments'][_filter_bin_mask]).tolist())
+else:
+    _pre_filter = None
+    _pre_fi = None
+    _filter_bin_mask = None
+    available_segments = sorted(np.unique(data['bin_segments']).tolist())
+
+_segment_sig = ','.join(available_filters) + '|' + ','.join(available_segments)
+if st.session_state.get('_segment_sig') != _segment_sig:
+    st.session_state.pop('segments_pills', None)
+    st.session_state['_segment_sig'] = _segment_sig
 
 # Reset date/rank/pos sliders when the dataset changes so stale values
 # from a previous dataset (e.g. synthetic dates) don't crash list.index().
@@ -1568,6 +1582,8 @@ segments_active     = selected_segments   # empty list → no segment selected �
 in_segment          = np.isin(data['bin_segments'], segments_active) if segments_active else np.zeros(len(data['bin_segments']), dtype=bool)
 in_rank             = (data['bin_ranks'] >= rank_range[0]) & (data['bin_ranks'] <= rank_range[1])
 visible_mask        = in_segment & in_rank
+if _filter_bin_mask is not None:
+    visible_mask   &= _filter_bin_mask
 visible_bin_indices = np.where(visible_mask)[0]
 
 date_start_idx = data['dates'].index(date_range[0])
@@ -1582,8 +1598,8 @@ if len(visible_bin_indices) == 0 or len(date_indices) == 0 or len(pos_indices) =
 
 # ── Compute view (session-state cache) ─────────────────────────────────────
 # Resolve filter-specific dense arrays (None when no filter column is present).
-if available_filters and data.get('date_winner_by_filter') is not None:
-    _active_fi  = data['filter_values'].index(selected_filter)
+if _pre_fi is not None:
+    _active_fi  = _pre_fi
     _active_dw  = data['date_winner_by_filter'][_active_fi]
     _active_dts = data['date_top_share_by_filter'][_active_fi]
 else:
