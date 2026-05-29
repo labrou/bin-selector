@@ -1164,7 +1164,7 @@ _dataset_sig = (
     f"__{(data['date_winner_by_filter'].shape[3] if data.get('date_winner_by_filter') is not None else data['date_winner'].shape[2])}"   # n_positions
 )
 if st.session_state.get('_dataset_sig') != _dataset_sig:
-    for _k in ('wk_slider', 'rank_slider', 'pos_slider'):
+    for _k in ('wk_slider', 'rank_slider', 'pos_slider', 'items_pills'):
         st.session_state.pop(_k, None)
     st.session_state['_dataset_sig'] = _dataset_sig
 
