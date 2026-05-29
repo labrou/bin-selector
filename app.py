@@ -2087,9 +2087,9 @@ if drill_bin != _no_sel:
         drill_dates = data['dates'][date_start_idx:date_end_idx + 1]
 
         # Per-date winner and top-item share from compact arrays (no 4D counts needed)
-        drill_winner = data['date_winner'][bidx,
+        drill_winner = _active_dw[bidx,
                            date_start_idx:date_end_idx + 1, :][:, pos_indices].copy()
-        drill_share  = data['date_top_share'][bidx,
+        drill_share  = _active_dts[bidx,
                            date_start_idx:date_end_idx + 1, :][:, pos_indices].copy()
         # shape: (n_dates_sel, n_pos_sel)
 
