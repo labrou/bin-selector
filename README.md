@@ -205,10 +205,11 @@ The controls are arranged above the chart (plus a cell-size / export row below t
 ### Row 1 — Filters
 
 **Filter** (optional) · Shown only when the uploaded data contains a `filter` column.
-Displays all distinct filter values as pills. Exactly one value is active at a time
-(no **all** / **none** buttons); selecting a pill hides every bin whose `filter` value
-does not match. Absent when using the synthetic dataset or when the CSV has no `filter`
-column. When present, this is the leftmost column of Row 1.
+Displays all distinct filter values as pills with no cap on the number of values.
+Exactly one value is active at a time (no **all** / **none** buttons); selecting a
+pill hides every bin whose `filter` value does not match. Absent when using the
+synthetic dataset or when the CSV has no `filter` column. When present, this is the
+leftmost column of Row 1. Rename the pill header via **Labels → Filter attribute**.
 
 **`<region_term>`s** · Toggleable pills showing all values of the bin's grouping
 attribute. Default: all selected. Filtering hides bins whose grouping value is
@@ -279,6 +280,7 @@ The sidebar (arrow at top-left) contains four sections:
 
 - **Bins are called** — replaces "bin" throughout the UI.
 - **Items are called** — replaces "item" throughout the UI.
+- **Filter attribute** — renames the filter pill header (visible only when the data has a `filter` column).
 
 **Display** · Visual customisation:
 

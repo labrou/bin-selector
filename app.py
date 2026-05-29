@@ -1023,6 +1023,11 @@ with st.sidebar:
     item_term    = st.text_input("Items are called",   "item",    key="item_term").strip()   or "item"
     segment_term = st.text_input(f"{bin_term.capitalize()} grouping attribute", "segment",
                                  key="segment_term").strip() or "segment"
+    if data.get('bin_filters') is not None:
+        filter_term = st.text_input("Filter attribute", "filter",
+                                    key="filter_term").strip() or "filter"
+    else:
+        filter_term = st.session_state.get("filter_term", "filter") or "filter"
 
     st.divider()
     st.markdown(
@@ -1181,10 +1186,11 @@ across visible {bin_term}s at each position (interpretation varies by method).
 
 ---
 
-### Filter — Row 1 (optional)
+### {filter_term.capitalize()} — Row 1 (optional)
 
 Shown only when your data has a `filter` column. One value is active at a time;
-selecting a different pill hides all {bin_term}s whose filter value does not match.
+selecting a different pill hides all {bin_term}s whose {filter_term} value does not match.
+Rename this label via **Labels → Filter attribute** in the sidebar.
 
 ---
 
@@ -1316,11 +1322,11 @@ if available_filters:
             st.markdown(
                 f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
                 f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
-                f'margin:0;padding-top:5px;">Filter</p>',
+                f'margin:0;padding-top:5px;">{filter_term.capitalize()}</p>',
                 unsafe_allow_html=True,
             )
         selected_filter = st.pills(
-            "Filter",
+            filter_term.capitalize(),
             available_filters,
             selection_mode=_FILTER_SELECTION_MODE,
             key="filter_pills",
