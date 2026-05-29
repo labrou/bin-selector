@@ -202,15 +202,13 @@ interaction.
 
 The controls are arranged above the chart (plus a cell-size / export row below the view summary).
 
-### Filter row (optional, above Row 1)
-
-Shown only when the uploaded data contains a `filter` column. Displays all distinct
-filter values as pills. Exactly one value is active at a time (no **all** / **none**
-buttons); selecting a pill hides every bin whose `filter` value does not match.
-The row is absent when using the synthetic dataset or when the CSV has no `filter`
-column.
-
 ### Row 1 — Filters
+
+**Filter** (optional) · Shown only when the uploaded data contains a `filter` column.
+Displays all distinct filter values as pills. Exactly one value is active at a time
+(no **all** / **none** buttons); selecting a pill hides every bin whose `filter` value
+does not match. Absent when using the synthetic dataset or when the CSV has no `filter`
+column. When present, this is the leftmost column of Row 1.
 
 **`<region_term>`s** · Toggleable pills showing all values of the bin's grouping
 attribute. Default: all selected. Filtering hides bins whose grouping value is
@@ -454,19 +452,17 @@ on every interaction:
 4. Derive `item_colors` from the colour-selection; define `pill_items`.
 5. JS injection for pill button colours.
 6. Title block + **User guide** button (`@st.dialog`).
-7. **Filter row** (conditional): single-select pills for the `filter` column when present.
-8. **Row 1:** Regions pills + Items pills + **Method** pills, each with
-   all/none buttons where applicable.
-9. **Row 2:** Date range, bin rank range, position range sliders.
-10. **Row 3:** Sort mode radio.
-11. Session-state `_view_sig` cache check → `compute_view` (only when
+7. **Row 1:** Filter pills (conditional, leftmost) + Regions pills + Items pills + **Method** pills.
+8. **Row 2:** Date range, bin rank range, position range sliders.
+9. **Row 3:** Sort mode radio.
+10. Session-state `_view_sig` cache check → `compute_view` (only when
     dataset, visible bins, date range, position set, method, or item count
     changes; skipped on sort/highlight/cell_size interactions).
-12. Filter pipeline → sort → build colorscale.
-13. View summary block + colour legend.
-14. Heatmap + marginal bar subplot → `st.plotly_chart`.
-15. Cell size slider + Auto-fit checkbox + Download CSV/HTML buttons.
-16. Drill-down selectbox for per-bin time-series heatmap.
+11. Filter pipeline → sort → build colorscale.
+12. View summary block + colour legend.
+13. Heatmap + marginal bar subplot → `st.plotly_chart`.
+14. Cell size slider + Auto-fit checkbox + Download CSV/HTML buttons.
+15. Drill-down selectbox for per-bin time-series heatmap.
 
 ### Performance cache
 

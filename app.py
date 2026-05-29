@@ -1181,7 +1181,7 @@ across visible {bin_term}s at each position (interpretation varies by method).
 
 ---
 
-### Filter row (above Row 1, optional)
+### Filter — Row 1 (optional)
 
 Shown only when your data has a `filter` column. One value is active at a time;
 selecting a different pill hides all {bin_term}s whose filter value does not match.
@@ -1297,35 +1297,35 @@ with _help_col:
     if st.button("User guide", key="help_btn"):
         _show_user_guide()
 
-# ── Filter row (only rendered when the data has a 'filter' column) ────────────
+# ── Row 1: Filter · Segments · Items · Method ─────────────────────────────────
 # Change _FILTER_SELECTION_MODE to "multi" to allow multiple simultaneous selections.
 _FILTER_SELECTION_MODE = "single"
 
 if available_filters:
     if 'filter_pills' not in st.session_state or st.session_state['filter_pills'] not in available_filters:
         st.session_state['filter_pills'] = available_filters[0]
-
-    _fhdr_col, _ = st.columns([2, 10], gap="small")
-    with _fhdr_col:
-        st.markdown(
-            f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
-            f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
-            f'margin:0;padding-top:5px;">Filter</p>',
-            unsafe_allow_html=True,
-        )
-    selected_filter = st.pills(
-        "Filter",
-        available_filters,
-        selection_mode=_FILTER_SELECTION_MODE,
-        key="filter_pills",
-        label_visibility="collapsed",
-    ) or available_filters[0]
-    st.divider()
+    col_filter, col_segments, col_items, col_method = st.columns(4)
 else:
     selected_filter = None
+    col_segments, col_items, col_method = st.columns(3)
 
-# ── Row 1: Segments · Items · Method ──────────────────────────────────────────
-col_segments, col_items, col_method = st.columns(3)
+if available_filters:
+    with col_filter:
+        _fhdr_col, _ = st.columns([4, 10], gap="small")
+        with _fhdr_col:
+            st.markdown(
+                f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
+                f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
+                f'margin:0;padding-top:5px;">Filter</p>',
+                unsafe_allow_html=True,
+            )
+        selected_filter = st.pills(
+            "Filter",
+            available_filters,
+            selection_mode=_FILTER_SELECTION_MODE,
+            key="filter_pills",
+            label_visibility="collapsed",
+        ) or available_filters[0]
 
 with col_segments:
     if 'segments_pills' not in st.session_state:
