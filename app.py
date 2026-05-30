@@ -1521,10 +1521,7 @@ st.plotly_chart(
     config={"modeBarButtonsToRemove": ["zoom2d","pan2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","lasso2d","select2d"], "displaylogo": False},
 )
 
-st.caption(f"↓ Use the drop-down below to open the time series for a {bin_term}.")
-_share_url_placeholder = st.empty()
-
-# ── HTML export ────────────────────────────────────────────────────────────────
+# ── HTML export key ───────────────────────────────────────────────────────────
 _html_view_key = (
     st.session_state.get('_dataset_sig', ''),
     tuple(ordered_bin_indices.tolist()),
@@ -1539,7 +1536,32 @@ if st.session_state.get('_html_view_key') != _html_view_key:
     st.session_state['_html_view_key'] = _html_view_key
     st.session_state.pop('_html_bytes', None)
 
-# ── Chart footer ───────────────────────────────────────────────────────────────
+# ── Drill-down ────────────────────────────────────────────────────────────────
+# Primary action first — immediately below the chart.
+clicked_bin_name = None
+
+drill_col, _ = st.columns([2, 3])
+with drill_col:
+    _no_sel      = f"— select a {bin_term} —"
+    drill_options = [_no_sel] + list(bin_names_disp)
+    default_idx   = 0
+    if clicked_bin_name and clicked_bin_name in drill_options:
+        default_idx = drill_options.index(clicked_bin_name)
+    st.markdown(
+        f'<p style="font-family:IBM Plex Sans,sans-serif;font-size:13px;'
+        f'color:{MUTED};margin:8px 0 2px;">Time series</p>',
+        unsafe_allow_html=True,
+    )
+    drill_bin = st.selectbox(
+        f"Time series",
+        drill_options,
+        index=default_idx,
+        key="drill_select",
+        label_visibility="collapsed",
+    )
+
+# ── Chart footer — utility controls ───────────────────────────────────────────
+st.divider()
 _sz_col, _af_col, _gap_col, _dl_csv_col, _dl_html_col = st.columns([3, 1, 1, 1, 1])
 with _sz_col:
     st.slider("Cell size (px)", 6, 28, cell_size, key="cell_sz", disabled=auto_fit)
@@ -1566,23 +1588,6 @@ with _dl_html_col:
                 include_plotlyjs='cdn', config={'displayModeBar': True}
             ).encode()
         st.rerun()
-
-# ── Drill-down ────────────────────────────────────────────────────────────────
-clicked_bin_name = None
-
-drill_col, _ = st.columns([2, 3])
-with drill_col:
-    _no_sel      = f"— select a {bin_term} —"
-    drill_options = [_no_sel] + list(bin_names_disp)
-    default_idx   = 0
-    if clicked_bin_name and clicked_bin_name in drill_options:
-        default_idx = drill_options.index(clicked_bin_name)
-    drill_bin = st.selectbox(
-        f"Drill down — {bin_term} time series",
-        drill_options,
-        index=default_idx,
-        key="drill_select",
-    )
 
 if drill_bin != _no_sel:
     bin_matches = np.where(data['bin_names'] == drill_bin)[0]
@@ -1725,7 +1730,3 @@ _share_url = f"{_share_proto}://{_share_host}/" + (f"?{_qs_share}" if _qs_share 
 with _share_placeholder.container():
     st.code(_share_url, language=None)
 
-# Fill the inline share URL expander near the chart
-with _share_url_placeholder.container():
-    with st.expander("🔗 Share this view", expanded=False):
-        st.code(_share_url, language=None)
