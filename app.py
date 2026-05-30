@@ -101,8 +101,9 @@ TITLE_FONTS = {
     "IBM Plex Sans":    ("'IBM Plex Sans', sans-serif",         "normal"),
 }
 
-SORT_GUIDE_URL   = "https://labrou.github.io/bin-selector/sort_modes_explainer.html"
-METHOD_GUIDE_URL = "https://labrou.github.io/bin-selector/method_explainer.html"
+SORT_GUIDE_URL   = "static/sort_modes_explainer.html"
+METHOD_GUIDE_URL = "static/method_explainer.html"
+VIZ_GUIDE_URL    = "static/visualization_explainer.html"
 
 
 def sort_descriptions(bt, it):
@@ -1238,6 +1239,9 @@ Hover any cell for exact values.
 Below the heatmap is a stacked bar showing the {item_term} distribution
 across visible {bin_term}s at each position (interpretation varies by method).
 
+For a visual walkthrough of how the heatmap, the bar, and the drill-down connect,
+see the [Visualization guide →]({VIZ_GUIDE_URL})
+
 ---
 
 ### {filter_term.capitalize()} — Row 1 (optional, leftmost)
@@ -1337,7 +1341,7 @@ One row per unique [bin\_id, date, position, segment, **item**].
 @st.dialog("Sort modes — visual guide", width="large")
 def _show_sort_guide():
     try:
-        html = Path(__file__).with_name("sort_modes_explainer.html").read_text(encoding="utf-8")
+        html = (Path(__file__).parent / "static" / "sort_modes_explainer.html").read_text(encoding="utf-8")
         style_m = re.search(r'<style>(.*?)</style>', html, re.DOTALL)
         body_m  = re.search(r'<body>(.*?)</body>',   html, re.DOTALL)
         if style_m and body_m:
@@ -1351,7 +1355,7 @@ def _show_sort_guide():
 @st.dialog("Method — visual guide", width="large")
 def _show_method_guide():
     try:
-        html = Path(__file__).with_name("method_explainer.html").read_text(encoding="utf-8")
+        html = (Path(__file__).parent / "static" / "method_explainer.html").read_text(encoding="utf-8")
         style_m = re.search(r'<style>(.*?)</style>', html, re.DOTALL)
         body_m  = re.search(r'<body>(.*?)</body>',   html, re.DOTALL)
         if style_m and body_m:
@@ -1362,8 +1366,22 @@ def _show_method_guide():
         st.markdown(f"[Open method guide in browser →]({METHOD_GUIDE_URL})")
 
 
+@st.dialog("The visualization — visual guide", width="large")
+def _show_viz_guide():
+    try:
+        html = (Path(__file__).parent / "static" / "visualization_explainer.html").read_text(encoding="utf-8")
+        style_m = re.search(r'<style>(.*?)</style>', html, re.DOTALL)
+        body_m  = re.search(r'<body>(.*?)</body>',   html, re.DOTALL)
+        if style_m and body_m:
+            st.html(f"<style>{style_m.group(1)}</style>{body_m.group(1)}")
+        else:
+            st.html(html)
+    except FileNotFoundError:
+        st.markdown(f"[Open visualization guide in browser →]({VIZ_GUIDE_URL})")
+
+
 # ── Title ─────────────────────────────────────────────────────────────────────
-_title_col, _help_col = st.columns([9, 1])
+_title_col, _viz_col, _help_col = st.columns([9, 1, 1])
 with _title_col:
     n_bins_total  = _dw_shape[0]
     n_dates_total = _dw_shape[1]
@@ -1374,11 +1392,16 @@ with _title_col:
     {n_items} {item_term}s &times; {n_dates_total} snapshots.</div>
 </div>
 """, unsafe_allow_html=True)
-with _help_col:
+with _viz_col:
     st.write("")
     st.write("")
     if st.button("User guide", key="help_btn"):
         _show_user_guide()
+with _help_col:
+    st.write("")
+    st.write("")
+    if st.button("Viz guide", key="viz_guide_btn"):
+        _show_viz_guide()
 
 # ── Row 1: Filter · Segments · Items · Method ─────────────────────────────────
 # Change _FILTER_SELECTION_MODE to "multi" to allow multiple simultaneous selections.

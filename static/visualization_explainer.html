@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The visualization — Ranked Placement Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #F7F4ED;
+    --panel:   #FBFAF5;
+    --ink:     #1A1A1A;
+    --muted:   #6B6B6B;
+    --border:  #2A2A2A;
+    --apx:     #B91C1C;
+    --brt:     #1E3A8A;
+    --cfd:     #15803D;
+    --dlt:     #CA8A04;
+    --etr:     #6D28D9;
+    --cell:    32px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 48px 32px;
+    max-width: 920px;
+    margin: 0 auto;
+  }
+
+  .page-eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 36px;
+    line-height: 1.1;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+  }
+  .intro {
+    color: #4A4A4A;
+    max-width: 640px;
+    margin-bottom: 40px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 48px;
+    padding: 14px 18px;
+    background: var(--panel);
+    border-left: 2px solid var(--border);
+    align-items: center;
+  }
+  .legend-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+  }
+  .swatch {
+    width: 13px; height: 13px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  hr.divider {
+    border: none;
+    border-top: 1px solid #D5D0C8;
+    margin: 48px 0;
+  }
+
+  .section { margin-bottom: 56px; }
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .section-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    min-width: 48px;
+  }
+  h2 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .section-desc {
+    color: #3A3A3A;
+    margin-bottom: 20px;
+    max-width: 640px;
+    padding-left: 60px;
+  }
+  .caption {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 14px;
+    padding-left: 60px;
+    max-width: 620px;
+    line-height: 1.6;
+  }
+
+  /* ── Heatmap grid ── */
+  .heatmap-wrap { padding-left: 60px; overflow-x: auto; }
+  .heatmap {
+    display: inline-grid;
+    gap: 2px;
+    background: var(--bg);
+  }
+  .pos-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--cell);
+    height: 20px;
+  }
+  .pos-label.date { font-size: 8px; }
+  .row-lbl {
+    display: flex;
+    align-items: center;
+    padding-right: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--ink);
+    white-space: nowrap;
+    height: var(--cell);
+  }
+  .rank-tag { font-size: 9px; color: var(--muted); margin-left: 4px; }
+  .cell {
+    width: var(--cell); height: var(--cell);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #fff;
+    border-radius: 1px;
+  }
+  .cell.empty  { background: var(--panel); color: transparent; }
+  .cell.apx    { background: var(--apx); }
+  .cell.brt    { background: var(--brt); }
+  .cell.cfd    { background: var(--cfd); }
+  .cell.dlt    { background: var(--dlt); }
+  .cell.etr    { background: var(--etr); }
+  .cell.hl     { outline: 2px solid var(--ink); outline-offset: -2px; }
+  .dim         { opacity: 0.28; }
+
+  /* ── Annotation layout ── */
+  .diagram-annotated {
+    display: flex;
+    gap: 32px;
+    align-items: flex-start;
+    padding-left: 60px;
+    overflow-x: auto;
+  }
+  .notes {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 210px;
+    padding-top: 22px;
+  }
+  .note {
+    padding: 10px 14px;
+    background: var(--panel);
+    border-left: 2px solid var(--border);
+    font-size: 13px;
+    line-height: 1.5;
+    color: #3A3A3A;
+  }
+  .note strong {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    color: var(--ink);
+    margin-bottom: 3px;
+  }
+
+  /* ── Bar marginal ── */
+  .bar-col {
+    width: var(--cell);
+    height: 80px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 1px;
+  }
+  .bs { border-radius: 1px; }
+
+  /* ── Connection section ── */
+  .conn-wrap {
+    padding-left: 60px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .conn-col-header {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .conn-grid {
+    display: inline-grid;
+    gap: 2px;
+  }
+  .conn-date-lbl {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    height: var(--cell);
+    display: flex;
+    align-items: center;
+    padding-right: 8px;
+    white-space: nowrap;
+  }
+  .conn-arrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .conn-arrow span {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 9px;
+  }
+  .result-cell {
+    width: 64px; height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    color: #fff;
+    border-radius: 2px;
+  }
+  .result-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* ── Inline diagram label ── */
+  .diagram-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  /* ── Hover tooltip mockup ── */
+  .tooltip-mock {
+    display: inline-block;
+    background: var(--ink);
+    color: var(--bg);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    padding: 10px 14px;
+    border-radius: 3px;
+    margin-left: 60px;
+    margin-bottom: 14px;
+  }
+  .tooltip-mock b { color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="page-eyebrow">Ranked Placement Atlas</div>
+<h1>The visualization</h1>
+<p class="intro">Two linked views: a cross-bin heatmap that collapses a date window into one aggregated snapshot, and a per-bin time series that unfolds that snapshot back across individual dates.</p>
+
+<div class="legend">
+  <span class="legend-label">Items used below</span>
+  <span class="legend-item"><span class="swatch" style="background:var(--apx)"></span>APX</span>
+  <span class="legend-item"><span class="swatch" style="background:var(--brt)"></span>BRT</span>
+  <span class="legend-item"><span class="swatch" style="background:var(--cfd)"></span>CFD</span>
+  <span class="legend-item"><span class="swatch" style="background:var(--dlt)"></span>DLT</span>
+  <span class="legend-item"><span class="swatch" style="background:var(--etr)"></span>ETR</span>
+</div>
+
+<hr class="divider">
+
+<!-- ── 01: Main heatmap ────────────────────────────────────────────────────── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">01</span>
+    <h2>The main heatmap</h2>
+  </div>
+  <p class="section-desc">Rows are bins. Columns are ranked positions (1 = leftmost = highest rank). Each cell is coloured by the item that held that slot most often across the selected date window.</p>
+
+  <div class="diagram-annotated">
+    <!-- Heatmap -->
+    <div>
+      <div class="heatmap" style="grid-template-columns: 84px repeat(6, var(--cell));">
+        <!-- Column headers -->
+        <div class="row-lbl" style="height:20px;font-size:9px;color:var(--muted);">BIN</div>
+        <div class="pos-label">P1</div>
+        <div class="pos-label">P2</div>
+        <div class="pos-label">P3</div>
+        <div class="pos-label">P4</div>
+        <div class="pos-label">P5</div>
+        <div class="pos-label">P6</div>
+        <!-- Basin -->
+        <div class="row-lbl">Basin</div>
+        <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell brt">BRT</div>
+        <div class="cell cfd">CFD</div><div class="cell dlt">DLT</div><div class="cell cfd">CFD</div>
+        <!-- Brook -->
+        <div class="row-lbl">Brook</div>
+        <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell apx">APX</div>
+        <div class="cell brt">BRT</div><div class="cell cfd">CFD</div><div class="cell dlt">DLT</div>
+        <!-- Cliff -->
+        <div class="row-lbl">Cliff</div>
+        <div class="cell brt">BRT</div><div class="cell brt">BRT</div><div class="cell apx">APX</div>
+        <div class="cell apx">APX</div><div class="cell dlt">DLT</div><div class="cell dlt">DLT</div>
+        <!-- Creek -->
+        <div class="row-lbl">Creek</div>
+        <div class="cell cfd">CFD</div><div class="cell apx">APX</div><div class="cell apx">APX</div>
+        <div class="cell apx">APX</div><div class="cell brt">BRT</div><div class="cell brt">BRT</div>
+        <!-- Frost -->
+        <div class="row-lbl">Frost</div>
+        <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell cfd">CFD</div>
+        <div class="cell brt">BRT</div><div class="cell brt">BRT</div><div class="cell apx">APX</div>
+      </div>
+    </div>
+
+    <!-- Annotations -->
+    <div class="notes">
+      <div class="note">
+        <strong>Row = one bin</strong>
+        A bin is the top-level grouping unit — a store, a search result page, a playlist. Each bin occupies one horizontal band, labeled by its bin ID.
+      </div>
+      <div class="note">
+        <strong>Column = one position</strong>
+        Position 1 is the leftmost column (highest-ranked slot). Columns increase to the right up to the position-range limit.
+      </div>
+      <div class="note">
+        <strong>Cell color = dominant item</strong>
+        The color shows which item held that slot most often across the selected date window. Hover any cell for the exact label, rank, segment, and winning share.
+      </div>
+      <div class="note">
+        <strong>Rank in the hover tooltip</strong>
+        Each bin's global rank appears in the hover tooltip, not in the row label. It drives the <em>Bin Rank</em> sort and the rank-range filter.
+      </div>
+    </div>
+  </div>
+
+  <!-- Hover tooltip mockup -->
+  <p class="caption" style="margin-bottom:12px;">Hovering a cell reveals its full detail:</p>
+  <div class="tooltip-mock">
+    <b>Basin</b> &nbsp;·&nbsp; Rank 12 &nbsp;·&nbsp; NA<br>
+    Position 3 &nbsp;·&nbsp; Item <b>BRT</b><br>
+    Date-win share: 83%
+  </div>
+  <p class="caption">Date-win share = fraction of dates in the selected window on which BRT was the plurality winner at this position for this bin. 83% means 5 of 6 snapshots.</p>
+</div>
+
+<!-- ── 02: Position bar ───────────────────────────────────────────────────── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">02</span>
+    <h2>The position bar</h2>
+  </div>
+  <p class="section-desc">A stacked bar chart sits directly below the heatmap, sharing the position axis. Each column shows how the winner is distributed across all visible bins at that position.</p>
+
+  <div class="heatmap-wrap">
+    <div style="display:inline-block;">
+      <!-- Heatmap (compact, no notes) -->
+      <div class="heatmap" style="grid-template-columns: 84px repeat(6, var(--cell)); margin-bottom:3px;">
+        <div class="row-lbl" style="height:20px;font-size:9px;color:var(--muted);">BIN</div>
+        <div class="pos-label">P1</div><div class="pos-label">P2</div><div class="pos-label">P3</div>
+        <div class="pos-label">P4</div><div class="pos-label">P5</div><div class="pos-label">P6</div>
+        <div class="row-lbl">Basin</div>
+        <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell brt">BRT</div>
+        <div class="cell cfd">CFD</div><div class="cell dlt">DLT</div><div class="cell cfd">CFD</div>
+        <div class="row-lbl">Brook</div>
+        <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell apx">APX</div>
+        <div class="cell brt">BRT</div><div class="cell cfd">CFD</div><div class="cell dlt">DLT</div>
+        <div class="row-lbl">Cliff</div>
+        <div class="cell brt">BRT</div><div class="cell brt">BRT</div><div class="cell apx">APX</div>
+        <div class="cell apx">APX</div><div class="cell dlt">DLT</div><div class="cell dlt">DLT</div>
+        <div class="row-lbl">Creek</div>
+        <div class="cell cfd">CFD</div><div class="cell apx">APX</div><div class="cell apx">APX</div>
+        <div class="cell apx">APX</div><div class="cell brt">BRT</div><div class="cell brt">BRT</div>
+        <div class="row-lbl">Frost</div>
+        <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell cfd">CFD</div>
+        <div class="cell brt">BRT</div><div class="cell brt">BRT</div><div class="cell apx">APX</div>
+      </div>
+
+      <!-- Bar chart aligned to heatmap columns -->
+      <!--
+        P1: APX=3, BRT=1, CFD=1  (of 5 bins)
+        P2: APX=4, BRT=1
+        P3: APX=3, BRT=1, CFD=1
+        P4: APX=2, BRT=2, CFD=1
+        P5: BRT=2, CFD=1, DLT=2
+        P6: APX=1, BRT=1, CFD=1, DLT=2
+      -->
+      <div style="display:flex;gap:2px;margin-left:86px;align-items:flex-end;
+                  border-bottom:1px solid #D5D0C8;">
+        <!-- P1: APX=3, BRT=1, CFD=1 -->
+        <div class="bar-col">
+          <div class="bs" style="flex:3;background:var(--apx)"></div>
+          <div class="bs" style="flex:1;background:var(--brt)"></div>
+          <div class="bs" style="flex:1;background:var(--cfd)"></div>
+        </div>
+        <!-- P2: APX=4, BRT=1 -->
+        <div class="bar-col">
+          <div class="bs" style="flex:4;background:var(--apx)"></div>
+          <div class="bs" style="flex:1;background:var(--brt)"></div>
+        </div>
+        <!-- P3: APX=3, BRT=1, CFD=1 -->
+        <div class="bar-col">
+          <div class="bs" style="flex:3;background:var(--apx)"></div>
+          <div class="bs" style="flex:1;background:var(--brt)"></div>
+          <div class="bs" style="flex:1;background:var(--cfd)"></div>
+        </div>
+        <!-- P4: APX=2, BRT=2, CFD=1 -->
+        <div class="bar-col">
+          <div class="bs" style="flex:2;background:var(--apx)"></div>
+          <div class="bs" style="flex:2;background:var(--brt)"></div>
+          <div class="bs" style="flex:1;background:var(--cfd)"></div>
+        </div>
+        <!-- P5: BRT=2, CFD=1, DLT=2 -->
+        <div class="bar-col">
+          <div class="bs" style="flex:2;background:var(--brt)"></div>
+          <div class="bs" style="flex:1;background:var(--cfd)"></div>
+          <div class="bs" style="flex:2;background:var(--dlt)"></div>
+        </div>
+        <!-- P6: APX=1, BRT=1, CFD=1, DLT=2 -->
+        <div class="bar-col">
+          <div class="bs" style="flex:1;background:var(--apx)"></div>
+          <div class="bs" style="flex:1;background:var(--brt)"></div>
+          <div class="bs" style="flex:1;background:var(--cfd)"></div>
+          <div class="bs" style="flex:2;background:var(--dlt)"></div>
+        </div>
+      </div>
+
+      <!-- Position axis labels -->
+      <div style="display:flex;gap:2px;margin-left:86px;margin-top:4px;">
+        <div style="width:var(--cell);text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">P1</div>
+        <div style="width:var(--cell);text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">P2</div>
+        <div style="width:var(--cell);text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">P3</div>
+        <div style="width:var(--cell);text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">P4</div>
+        <div style="width:var(--cell);text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">P5</div>
+        <div style="width:var(--cell);text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">P6</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption">At P1, APX dominates (3 of 5 bins). At P5, BRT and DLT split evenly. At P6, variety increases — no single item holds more than 2 bins. Each bar column sums to 100% of visible bins.</p>
+</div>
+
+<!-- ── 03: Drill-down ─────────────────────────────────────────────────────── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">03</span>
+    <h2>The drill-down</h2>
+  </div>
+  <p class="section-desc">Use the drop-down selectbox below the chart to choose a bin. A time-series view expands for that bin, showing how each position's item changed across individual dates. The main heatmap collapses time; the drill-down unfolds it.</p>
+
+  <!-- Main heatmap with Basin highlighted -->
+  <div class="heatmap-wrap" style="margin-bottom:6px;">
+    <div class="diagram-label">Main heatmap — Basin row selected</div>
+    <div class="heatmap" style="grid-template-columns: 84px repeat(6, var(--cell));">
+      <div class="row-lbl" style="height:20px;font-size:9px;color:var(--muted);">BIN</div>
+      <div class="pos-label">P1</div><div class="pos-label">P2</div><div class="pos-label">P3</div>
+      <div class="pos-label">P4</div><div class="pos-label">P5</div><div class="pos-label">P6</div>
+
+      <!-- Basin highlighted -->
+      <div class="row-lbl" style="font-weight:500;">Basin</div>
+      <div class="cell apx hl">APX</div><div class="cell apx hl">APX</div><div class="cell brt hl">BRT</div>
+      <div class="cell cfd hl">CFD</div><div class="cell dlt hl">DLT</div><div class="cell cfd hl">CFD</div>
+
+      <!-- Others dimmed -->
+      <div class="row-lbl dim">Brook</div>
+      <div class="cell apx dim">APX</div><div class="cell apx dim">APX</div><div class="cell apx dim">APX</div>
+      <div class="cell brt dim">BRT</div><div class="cell cfd dim">CFD</div><div class="cell dlt dim">DLT</div>
+
+      <div class="row-lbl dim">Cliff</div>
+      <div class="cell brt dim">BRT</div><div class="cell brt dim">BRT</div><div class="cell apx dim">APX</div>
+      <div class="cell apx dim">APX</div><div class="cell dlt dim">DLT</div><div class="cell dlt dim">DLT</div>
+
+      <div class="row-lbl dim">Creek</div>
+      <div class="cell cfd dim">CFD</div><div class="cell apx dim">APX</div><div class="cell apx dim">APX</div>
+      <div class="cell apx dim">APX</div><div class="cell brt dim">BRT</div><div class="cell brt dim">BRT</div>
+
+      <div class="row-lbl dim">Frost</div>
+      <div class="cell apx dim">APX</div><div class="cell apx dim">APX</div><div class="cell cfd dim">CFD</div>
+      <div class="cell brt dim">BRT</div><div class="cell brt dim">BRT</div><div class="cell apx dim">APX</div>
+    </div>
+  </div>
+
+  <div style="padding-left:60px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink);margin:10px 0 18px;">
+    ↓ &nbsp; select <strong>Basin</strong> in the drop-down → time series expands below
+  </div>
+
+  <!-- Drill-down heatmap -->
+  <div class="heatmap-wrap">
+    <div class="diagram-label">Drill-down — Basin · Rank #12 · NA</div>
+    <div class="heatmap" style="grid-template-columns: 36px repeat(6, var(--cell));">
+      <!-- Date headers -->
+      <div class="row-lbl" style="height:20px;font-size:9px;color:var(--muted);width:36px;padding-right:0;">POS</div>
+      <div class="pos-label date">Feb 3</div>
+      <div class="pos-label date">Feb 10</div>
+      <div class="pos-label date">Feb 17</div>
+      <div class="pos-label date">Feb 24</div>
+      <div class="pos-label date">Mar 3</div>
+      <div class="pos-label date">Mar 10</div>
+      <!-- P1 -->
+      <div class="row-lbl" style="width:36px;padding-right:0;">P1</div>
+      <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell apx">APX</div>
+      <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell brt">BRT</div>
+      <!-- P2 -->
+      <div class="row-lbl" style="width:36px;padding-right:0;">P2</div>
+      <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell brt">BRT</div>
+      <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell apx">APX</div>
+      <!-- P3 -->
+      <div class="row-lbl" style="width:36px;padding-right:0;">P3</div>
+      <div class="cell brt">BRT</div><div class="cell brt">BRT</div><div class="cell brt">BRT</div>
+      <div class="cell cfd">CFD</div><div class="cell brt">BRT</div><div class="cell brt">BRT</div>
+      <!-- P4 -->
+      <div class="row-lbl" style="width:36px;padding-right:0;">P4</div>
+      <div class="cell cfd">CFD</div><div class="cell cfd">CFD</div><div class="cell cfd">CFD</div>
+      <div class="cell dlt">DLT</div><div class="cell cfd">CFD</div><div class="cell cfd">CFD</div>
+      <!-- P5 -->
+      <div class="row-lbl" style="width:36px;padding-right:0;">P5</div>
+      <div class="cell dlt">DLT</div><div class="cell etr">ETR</div><div class="cell dlt">DLT</div>
+      <div class="cell dlt">DLT</div><div class="cell dlt">DLT</div><div class="cell dlt">DLT</div>
+      <!-- P6 -->
+      <div class="row-lbl" style="width:36px;padding-right:0;">P6</div>
+      <div class="cell cfd">CFD</div><div class="cell cfd">CFD</div><div class="cell brt">BRT</div>
+      <div class="cell cfd">CFD</div><div class="cell cfd">CFD</div><div class="cell cfd">CFD</div>
+    </div>
+  </div>
+
+  <p class="caption">Rows are now positions; columns are individual snapshot dates. The same colour palette is used — BRT is always dark blue, DLT always amber. Each cell shows the per-date plurality winner for that (position, date) pair inside this one bin.</p>
+</div>
+
+<!-- ── 04: The connection ─────────────────────────────────────────────────── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">04</span>
+    <h2>How they connect</h2>
+  </div>
+  <p class="section-desc">Every cell in the main heatmap is the aggregated outcome of one column in the drill-down. The drill-down makes the individual votes visible; the main heatmap shows who won.</p>
+
+  <div class="conn-wrap">
+    <!-- P3 column extracted from drill-down -->
+    <div>
+      <div class="conn-col-header">Drill-down · Basin · P3</div>
+      <div class="conn-grid" style="grid-template-columns: 52px var(--cell);">
+        <div style="height:20px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);display:flex;align-items:center;">DATE</div>
+        <div style="height:20px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);display:flex;align-items:center;justify-content:center;">ITEM</div>
+
+        <div class="conn-date-lbl">Feb 3</div>  <div class="cell brt">BRT</div>
+        <div class="conn-date-lbl">Feb 10</div> <div class="cell brt">BRT</div>
+        <div class="conn-date-lbl">Feb 17</div> <div class="cell brt">BRT</div>
+        <div class="conn-date-lbl">Feb 24</div> <div class="cell cfd">CFD</div>
+        <div class="conn-date-lbl">Mar 3</div>  <div class="cell brt">BRT</div>
+        <div class="conn-date-lbl">Mar 10</div> <div class="cell brt">BRT</div>
+      </div>
+    </div>
+
+    <!-- Arrow -->
+    <div class="conn-arrow">
+      →
+      <span>majority</span>
+    </div>
+
+    <!-- Result -->
+    <div>
+      <div class="conn-col-header">Main heatmap · Basin · P3</div>
+      <div style="margin-top:20px;">
+        <div class="result-cell" style="background:var(--brt);">BRT</div>
+        <div class="result-sub">5 of 6 dates: BRT</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption" style="margin-top:20px;">BRT held position 3 for Basin on 5 of 6 snapshot dates. One exception on Feb 24 (CFD) does not change the plurality outcome. The main heatmap shows only the winner — the drill-down shows the full record behind it.</p>
+
+  <!-- Side-by-side full comparison -->
+  <div style="margin-top:36px;padding-left:60px;overflow-x:auto;">
+    <div class="diagram-label" style="margin-bottom:10px;">All six positions — aggregated result vs. per-date detail</div>
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+
+      <!-- Aggregated row (from main heatmap) -->
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.1em;">Aggregated (main heatmap)</div>
+        <div style="display:flex;gap:2px;align-items:flex-end;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);width:36px;height:var(--cell);display:flex;align-items:center;">Basin</div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">P1</div>
+            <div class="cell apx">APX</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">P2</div>
+            <div class="cell apx">APX</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">P3</div>
+            <div class="cell brt">BRT</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">P4</div>
+            <div class="cell cfd">CFD</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">P5</div>
+            <div class="cell dlt">DLT</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">P6</div>
+            <div class="cell cfd">CFD</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:18px;color:var(--muted);padding-top:28px;">←</div>
+
+      <!-- Per-date detail (from drill-down) -->
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.1em;">Per-date detail (drill-down)</div>
+        <div class="heatmap" style="grid-template-columns: 36px repeat(6, var(--cell));">
+          <div class="row-lbl" style="height:20px;font-size:9px;color:var(--muted);width:36px;padding-right:0;">DATE</div>
+          <div class="pos-label">P1</div><div class="pos-label">P2</div><div class="pos-label">P3</div>
+          <div class="pos-label">P4</div><div class="pos-label">P5</div><div class="pos-label">P6</div>
+
+          <div class="row-lbl" style="width:36px;padding-right:0;font-size:9px;">Feb 3</div>
+          <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell brt">BRT</div>
+          <div class="cell cfd">CFD</div><div class="cell dlt">DLT</div><div class="cell cfd">CFD</div>
+
+          <div class="row-lbl" style="width:36px;padding-right:0;font-size:9px;">Feb 10</div>
+          <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell brt">BRT</div>
+          <div class="cell cfd">CFD</div><div class="cell etr">ETR</div><div class="cell cfd">CFD</div>
+
+          <div class="row-lbl" style="width:36px;padding-right:0;font-size:9px;">Feb 17</div>
+          <div class="cell apx">APX</div><div class="cell brt">BRT</div><div class="cell brt">BRT</div>
+          <div class="cell cfd">CFD</div><div class="cell dlt">DLT</div><div class="cell brt">BRT</div>
+
+          <div class="row-lbl" style="width:36px;padding-right:0;font-size:9px;">Feb 24</div>
+          <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell cfd">CFD</div>
+          <div class="cell dlt">DLT</div><div class="cell dlt">DLT</div><div class="cell cfd">CFD</div>
+
+          <div class="row-lbl" style="width:36px;padding-right:0;font-size:9px;">Mar 3</div>
+          <div class="cell apx">APX</div><div class="cell apx">APX</div><div class="cell brt">BRT</div>
+          <div class="cell cfd">CFD</div><div class="cell dlt">DLT</div><div class="cell cfd">CFD</div>
+
+          <div class="row-lbl" style="width:36px;padding-right:0;font-size:9px;">Mar 10</div>
+          <div class="cell brt">BRT</div><div class="cell apx">APX</div><div class="cell brt">BRT</div>
+          <div class="cell cfd">CFD</div><div class="cell dlt">DLT</div><div class="cell cfd">CFD</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption" style="margin-top:14px;">The aggregated row (top) is the per-column majority of the detail grid (bottom). Scanning the P5 column: DLT appears in 5 of 6 dates — DLT wins. Scanning P6: CFD appears in 5 of 6 — CFD wins. The one-off ETR and BRT exceptions are visible in the detail but do not change the outcome.</p>
+</div>
+
+</body>
+</html>
