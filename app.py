@@ -527,6 +527,11 @@ st.markdown(f"""
         margin-top: 2px;
         pointer-events: none;
     }}
+    .js-plotly-plot .plotly .nsewdrag,
+    .js-plotly-plot .plotly .ewdrag,
+    .js-plotly-plot .plotly .nsdrag {{
+        cursor: default !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1062,23 +1067,31 @@ _sort = st.session_state.pop('sort_radio', None)
 if _sort not in sort_options:
     _sort = 'Similarity'
 
-with st.expander(f"Sort {bin_term}s by — {_sort}", expanded=False):
-    sort_mode = st.radio(
-        f"Sort {bin_term}s by",
-        sort_options,
-        index=sort_options.index(_sort),
-        horizontal=True,
-        key="sort_radio",
-        label_visibility="collapsed",
-    )
+_sort_lbl_col, _sort_q_col, _ = st.columns([1.4, 1.0, 7.6], gap="small")
+with _sort_lbl_col:
     st.markdown(
-        f'<p style="font-family:IBM Plex Sans,sans-serif;font-size:13px;'
-        f'color:#666666;margin:10px 0 14px 0;line-height:1.5;">'
-        f'{sort_descriptions(bin_term, item_term).get(sort_mode, "")}</p>',
+        f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
+        f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
+        f'margin:0;padding-top:2px;">Sort {bin_term}s by</p>',
         unsafe_allow_html=True,
     )
+with _sort_q_col:
     if st.button("sort guide", key="sort_guide_btn"):
         _show_sort_guide()
+sort_mode = st.radio(
+    f"Sort {bin_term}s by",
+    sort_options,
+    index=sort_options.index(_sort),
+    horizontal=True,
+    key="sort_radio",
+    label_visibility="collapsed",
+)
+st.markdown(
+    f'<p style="font-family:IBM Plex Sans,sans-serif;font-size:13px;'
+    f'color:#666666;margin:10px 0 14px 0;line-height:1.5;">'
+    f'{sort_descriptions(bin_term, item_term).get(sort_mode, "")}</p>',
+    unsafe_allow_html=True,
+)
 st.divider()
 
 # ── Filtering ─────────────────────────────────────────────────────────────────
