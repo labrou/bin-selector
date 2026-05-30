@@ -1677,15 +1677,16 @@ if drill_bin != _no_sel:
                 ),
             )
             mini_fig.update_yaxes(
-                autorange='reversed', showgrid=False, zeroline=False,
+                autorange='reversed', showgrid=False, zeroline=False, fixedrange=True,
                 tickfont=dict(size=9, family='IBM Plex Mono', color=INK),
                 title=dict(text='POSITION', font=dict(size=9, family='IBM Plex Mono', color=MUTED)),
             )
             mini_fig.update_xaxes(
-                showgrid=False, zeroline=False, tickangle=45,
+                showgrid=False, zeroline=False, fixedrange=True, tickangle=45,
                 tickfont=dict(size=8, family='IBM Plex Mono', color=MUTED),
             )
-            st.plotly_chart(mini_fig, **_chart_own_width)
+            st.plotly_chart(mini_fig, **_chart_own_width,
+                            config={"displayModeBar": False})
 
             # CSV for this bin's time series
             n_di, n_dp = drill_winner.shape
