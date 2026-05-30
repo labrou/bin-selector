@@ -74,10 +74,9 @@ a wider range triggers the selected Method's aggregation logic.
 
 ### Drill-down
 
-Click any cell in the heatmap to select that %%bin_term%%, or use the drop-down
-selectbox below the chart. A time-series heatmap appears below, showing how its
-%%item_term%% mix evolved across every date in the selected range.
-Hover shows the %%item_term%%'s share for that specific date.
+Use the drop-down selectbox below the chart to select a %%bin_term%%. A time-series
+heatmap appears below, showing how its %%item_term%% mix evolved across every date
+in the selected range. Hover shows the %%item_term%%'s share for that specific date.
 
 ---
 

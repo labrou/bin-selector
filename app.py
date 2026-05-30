@@ -1471,23 +1471,6 @@ else:
                 row=2, col=1,
             )
 
-# ── Click-selection overlay ───────────────────────────────────────────────────
-# Heatmap traces don't fire Plotly selection events. An invisible scatter trace
-# covering every cell acts as a transparent hit-target that does fire them.
-_sel_x = np.tile(positions_disp, n_show_bins).tolist()
-_sel_y = np.repeat(bin_names_disp, n_show_pos).tolist()
-fig.add_trace(
-    go.Scatter(
-        x=_sel_x, y=_sel_y,
-        mode='markers',
-        marker=dict(size=max(int(cell_h), 18), opacity=0.01, color='rgba(0,0,0,0)'),
-        showlegend=False,
-        hoverinfo='skip',
-        customdata=_sel_y,
-    ),
-    row=1, col=1,
-)
-
 xtickvals = sorted(set(
     [int(positions_disp[0]), int(positions_disp[-1])]
     + [p for p in positions_disp if int(p) % 5 == 0]
@@ -1538,7 +1521,7 @@ chart_event = st.plotly_chart(
     config={"modeBarButtonsToRemove": ["zoom2d","pan2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","lasso2d","select2d"], "displaylogo": False},
 )
 
-st.caption(f"↓ Click any cell to select a {bin_term}, or use the drop-down below.")
+st.caption(f"↓ Use the drop-down below to open the time series for a {bin_term}.")
 _share_url_placeholder = st.empty()
 
 # ── HTML export ────────────────────────────────────────────────────────────────
@@ -1586,12 +1569,10 @@ with _dl_html_col:
 
 # ── Drill-down ────────────────────────────────────────────────────────────────
 clicked_bin_name = None
-_bin_name_set = set(bin_names_disp.tolist())
 if chart_event and chart_event.selection and chart_event.selection.points:
     for pt in chart_event.selection.points:
-        _y = pt.get('y')
-        if _y and _y in _bin_name_set:
-            clicked_bin_name = _y
+        if pt.get('curve_number', -1) == 0 and pt.get('y'):
+            clicked_bin_name = pt['y']
             break
 
 drill_col, _ = st.columns([2, 3])
