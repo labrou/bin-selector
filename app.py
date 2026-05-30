@@ -1225,129 +1225,55 @@ max_rank_val = int(data['bin_ranks'].max())
 
 
 # ── Dialogs ───────────────────────────────────────────────────────────────────
+def _guide_subs():
+    """Return substitution dict for %%KEY%% placeholders in guide files."""
+    return dict(
+        bin_term=bin_term,
+        Bin_term=bin_term.capitalize(),
+        item_term=item_term,
+        Item_term=item_term.capitalize(),
+        segment_term=segment_term,
+        Segment_term=segment_term.capitalize(),
+        filter_term=filter_term,
+        Filter_term=filter_term.capitalize(),
+        SORT_GUIDE_URL=SORT_GUIDE_URL,
+        METHOD_GUIDE_URL=METHOD_GUIDE_URL,
+        VIZ_GUIDE_URL=VIZ_GUIDE_URL,
+    )
+
+
+def _load_guide_html(filename):
+    """Load an HTML guide from static/, apply %%KEY%% substitutions, return rendered HTML."""
+    text = (Path(__file__).parent / "static" / filename).read_text(encoding="utf-8")
+    for key, val in _guide_subs().items():
+        text = text.replace(f"%%{key}%%", str(val))
+    style_m = re.search(r'<style>(.*?)</style>', text, re.DOTALL)
+    body_m  = re.search(r'<body>(.*?)</body>',   text, re.DOTALL)
+    if style_m and body_m:
+        return f"<style>{style_m.group(1)}</style>{body_m.group(1)}"
+    return text
+
+
+def _load_guide_md(filename):
+    """Load a Markdown guide from static/, apply %%KEY%% substitutions."""
+    text = (Path(__file__).parent / "static" / filename).read_text(encoding="utf-8")
+    for key, val in _guide_subs().items():
+        text = text.replace(f"%%{key}%%", str(val))
+    return text
+
+
 @st.dialog("User Guide", width="large")
 def _show_user_guide():
-    st.markdown(f"""
-### What you're looking at
-
-A heatmap where each **row** is a {bin_term}, each **column** is a ranked position,
-and each **cell** is coloured by the {item_term} occupying that slot.
-When you select a date range spanning multiple snapshots, each cell is resolved
-according to the active **Method** (see the Method section in Row 1).
-Hover any cell for exact values.
-
-Below the heatmap is a stacked bar showing the {item_term} distribution
-across visible {bin_term}s at each position (interpretation varies by method).
-
-For a visual walkthrough of how the heatmap, the bar, and the drill-down connect,
-see the [Visualization guide →]({VIZ_GUIDE_URL})
-
----
-
-### {filter_term.capitalize()} — Row 1 (optional, leftmost)
-
-Shown only when your data has a `filter` column. One value is active at a time;
-selecting a pill restricts the heatmap to rows with that provenance label — only
-those rows drive cell colours, shares, and the bar chart. Bins that carry no data
-for the selected value are hidden. Rename this label via **Labels → Filter attribute**.
-
----
-
-### {segment_term.capitalize()}s — Row 1
-
-Toggleable pills. All values are selected by default; deselecting one hides every
-{bin_term} whose {segment_term} is not selected. Use **all** / **none** buttons to
-select or clear in bulk. When a filter is active, only segments present in that
-filter's data are shown.
-
----
-
-### {item_term.capitalize()}s — Row 1
-
-Toggleable pills. All items are selected by default; controls *highlighting*, not
-filtering. Deselected items are dimmed; selecting **none** dims all items.
-Gray items (beyond the top-10 distinct colours) are always visible at full colour
-in the heatmap but are not shown as pills. Use **all** / **none** buttons to
-select or clear in bulk.
-
----
-
-### Method — Row 1 (rightmost)
-
-| Method | What it does |
-|---|---|
-| **Majority** | For each date, the plurality winner (most observations); across dates, the item that won most dates is shown. |
-| **Abs. Majority** | Per date: the plurality winner wins only if it holds ≥ 50 % of that day's observations; otherwise that day's value is **VARIOUS**. Cross-date aggregation is identical to Majority. |
-| **Weighted** | Pools all observations across the date range; item share = total N\_item ÷ total group\_N. Winner = highest share. |
-
-[Visual guide to all methods →]({METHOD_GUIDE_URL})
-
----
-
-### Ranges — Row 2
-
-**Date** · Dual-handle slider. A single date shows that snapshot exactly;
-a wider range triggers the selected Method's aggregation logic.
-
-**{bin_term.capitalize()} rank range** · Filter rows by global rank.
-
-**Position range** · Hide columns outside the chosen window.
-
----
-
-### Sort — Row 3
-
-| Mode | What it does |
-|---|---|
-| **Index** | Alphabetical by {bin_term} ID — stable baseline |
-| **Similarity** | Groups {bin_term}s that share the same {item_term}s at positions 1–4 (default) |
-| **{bin_term.capitalize()} Rank** | Ascending by global rank |
-| **Top-rank** | Groups {bin_term}s sharing the same {item_term} at position 1; ties resolved by position 2, 3, … |
-| **Selected Share** | Ranks {bin_term}s by how many visible positions are held by selected {item_term}s |
-
-[Visual guide to all sort modes →]({SORT_GUIDE_URL})
-
----
-
-### Drill-down
-
-Click any cell to select that {bin_term}. A time-series heatmap appears below,
-showing how its {item_term} mix evolved across every date in the selected range.
-Hover shows the {item_term}'s share for that specific date.
-
----
-
-### Uploading your own data
-
-Open the **sidebar** and upload a CSV with these columns:
-
-| Column | Required | Notes |
-|---|---|---|
-| `bin_id` | ✓ | Display name |
-| `date` | ✓ | M/D/YYYY format (single or double-digit month/day) |
-| `position` | ✓ | Ranked position within the {bin_term} |
-| `item` | ✓ | Any string label |
-| `bin_rank` | ✓ | Global rank of the {bin_term} |
-| `segment` | ✓ | Grouping / filter attribute |
-| `filter` | optional | Bin-level filter label; shown as single-select pills above the segments row. |
-| `N_item` | optional | Observation count for this item. Defaults to 1 per row if absent. |
-
-One row per unique [bin\_id, date, position, segment, **item**].
-`group_N` (total observations per cell) is computed internally as `sum(N_item)` across items sharing the same [bin\_id, date, position, segment] key.
-`bin_rank` is bin-level metadata (one value per bin), not part of the aggregation key.
-""")
+    try:
+        st.markdown(_load_guide_md("user_guide.md"))
+    except FileNotFoundError:
+        st.markdown("User guide not found.")
 
 
 @st.dialog("Sort modes — visual guide", width="large")
 def _show_sort_guide():
     try:
-        html = (Path(__file__).parent / "static" / "sort_modes_explainer.html").read_text(encoding="utf-8")
-        style_m = re.search(r'<style>(.*?)</style>', html, re.DOTALL)
-        body_m  = re.search(r'<body>(.*?)</body>',   html, re.DOTALL)
-        if style_m and body_m:
-            st.html(f"<style>{style_m.group(1)}</style>{body_m.group(1)}")
-        else:
-            st.html(html)
+        st.html(_load_guide_html("sort_modes_explainer.html"))
     except FileNotFoundError:
         st.markdown(f"[Open visual guide in browser →]({SORT_GUIDE_URL})")
 
@@ -1355,13 +1281,7 @@ def _show_sort_guide():
 @st.dialog("Method — visual guide", width="large")
 def _show_method_guide():
     try:
-        html = (Path(__file__).parent / "static" / "method_explainer.html").read_text(encoding="utf-8")
-        style_m = re.search(r'<style>(.*?)</style>', html, re.DOTALL)
-        body_m  = re.search(r'<body>(.*?)</body>',   html, re.DOTALL)
-        if style_m and body_m:
-            st.html(f"<style>{style_m.group(1)}</style>{body_m.group(1)}")
-        else:
-            st.html(html)
+        st.html(_load_guide_html("method_explainer.html"))
     except FileNotFoundError:
         st.markdown(f"[Open method guide in browser →]({METHOD_GUIDE_URL})")
 
@@ -1369,13 +1289,7 @@ def _show_method_guide():
 @st.dialog("The visualization — visual guide", width="large")
 def _show_viz_guide():
     try:
-        html = (Path(__file__).parent / "static" / "visualization_explainer.html").read_text(encoding="utf-8")
-        style_m = re.search(r'<style>(.*?)</style>', html, re.DOTALL)
-        body_m  = re.search(r'<body>(.*?)</body>',   html, re.DOTALL)
-        if style_m and body_m:
-            st.html(f"<style>{style_m.group(1)}</style>{body_m.group(1)}")
-        else:
-            st.html(html)
+        st.html(_load_guide_html("visualization_explainer.html"))
     except FileNotFoundError:
         st.markdown(f"[Open visualization guide in browser →]({VIZ_GUIDE_URL})")
 

@@ -317,10 +317,10 @@
 
 <div class="page-eyebrow">Ranked Placement Atlas</div>
 <h1>The visualization</h1>
-<p class="intro">Two linked views: a cross-bin heatmap that collapses a date window into one aggregated snapshot, and a per-bin time series that unfolds that snapshot back across individual dates.</p>
+<p class="intro">Two linked views: a cross-%%bin_term%% heatmap that collapses a date window into one aggregated snapshot, and a per-%%bin_term%% time series that unfolds that snapshot back across individual dates.</p>
 
 <div class="legend">
-  <span class="legend-label">Items used below</span>
+  <span class="legend-label">%%Item_term%%s used below</span>
   <span class="legend-item"><span class="swatch" style="background:var(--apx)"></span>APX</span>
   <span class="legend-item"><span class="swatch" style="background:var(--brt)"></span>BRT</span>
   <span class="legend-item"><span class="swatch" style="background:var(--cfd)"></span>CFD</span>
@@ -336,14 +336,14 @@
     <span class="section-num">01</span>
     <h2>The main heatmap</h2>
   </div>
-  <p class="section-desc">Rows are bins. Columns are ranked positions (1 = leftmost = highest rank). Each cell is coloured by the item that held that slot most often across the selected date window.</p>
+  <p class="section-desc">Rows are %%bin_term%%s. Columns are ranked positions (1 = leftmost = highest rank). Each cell is coloured by the %%item_term%% that held that slot most often across the selected date window.</p>
 
   <div class="diagram-annotated">
     <!-- Heatmap -->
     <div>
       <div class="heatmap" style="grid-template-columns: 84px repeat(6, var(--cell));">
         <!-- Column headers -->
-        <div class="row-lbl" style="height:20px;font-size:9px;color:var(--muted);">BIN</div>
+        <div class="row-lbl" style="height:20px;font-size:9px;color:var(--muted);">%%Bin_term%%</div>
         <div class="pos-label">P1</div>
         <div class="pos-label">P2</div>
         <div class="pos-label">P3</div>
@@ -376,20 +376,20 @@
     <!-- Annotations -->
     <div class="notes">
       <div class="note">
-        <strong>Row = one bin</strong>
-        A bin is the top-level grouping unit — a store, a search result page, a playlist. Each bin occupies one horizontal band, labeled by its bin ID.
+        <strong>Row = one %%bin_term%%</strong>
+        A %%bin_term%% is the top-level grouping unit. Each %%bin_term%% occupies one horizontal band, labeled by its ID.
       </div>
       <div class="note">
         <strong>Column = one position</strong>
         Position 1 is the leftmost column (highest-ranked slot). Columns increase to the right up to the position-range limit.
       </div>
       <div class="note">
-        <strong>Cell color = dominant item</strong>
-        The color shows which item held that slot most often across the selected date window. Hover any cell for the exact label, rank, segment, and winning share.
+        <strong>Cell color = dominant %%item_term%%</strong>
+        The color shows which %%item_term%% held that slot most often across the selected date window. Hover any cell for the exact label, rank, segment, and winning share.
       </div>
       <div class="note">
         <strong>Rank in the hover tooltip</strong>
-        Each bin's global rank appears in the hover tooltip, not in the row label. It drives the <em>Bin Rank</em> sort and the rank-range filter.
+        Each %%bin_term%%'s global rank appears in the hover tooltip, not in the row label. It drives the <em>%%Bin_term%% Rank</em> sort and the rank-range filter.
       </div>
     </div>
   </div>
@@ -410,13 +410,13 @@
     <span class="section-num">02</span>
     <h2>The position bar</h2>
   </div>
-  <p class="section-desc">A stacked bar chart sits directly below the heatmap, sharing the position axis. Each column shows how the winner is distributed across all visible bins at that position.</p>
+  <p class="section-desc">A stacked bar chart sits directly below the heatmap, sharing the position axis. Each column shows how the winner is distributed across all visible %%bin_term%%s at that position.</p>
 
   <div class="heatmap-wrap">
     <div style="display:inline-block;">
       <!-- Heatmap (compact, no notes) -->
       <div class="heatmap" style="grid-template-columns: 84px repeat(6, var(--cell)); margin-bottom:3px;">
-        <div class="row-lbl" style="height:20px;font-size:9px;color:var(--muted);">BIN</div>
+        <div class="row-lbl" style="height:20px;font-size:9px;color:var(--muted);">%%Bin_term%%</div>
         <div class="pos-label">P1</div><div class="pos-label">P2</div><div class="pos-label">P3</div>
         <div class="pos-label">P4</div><div class="pos-label">P5</div><div class="pos-label">P6</div>
         <div class="row-lbl">Basin</div>
@@ -497,7 +497,7 @@
     </div>
   </div>
 
-  <p class="caption">At P1, APX dominates (3 of 5 bins). At P5, BRT and DLT split evenly. At P6, variety increases — no single item holds more than 2 bins. Each bar column sums to 100% of visible bins.</p>
+  <p class="caption">At P1, APX dominates (3 of 5 %%bin_term%%s). At P5, BRT and DLT split evenly. At P6, variety increases — no single %%item_term%% holds more than 2 %%bin_term%%s. Each bar column sums to 100% of visible %%bin_term%%s.</p>
 </div>
 
 <!-- ── 03: Drill-down ─────────────────────────────────────────────────────── -->
@@ -506,7 +506,7 @@
     <span class="section-num">03</span>
     <h2>The drill-down</h2>
   </div>
-  <p class="section-desc">Use the drop-down selectbox below the chart to choose a bin. A time-series view expands for that bin, showing how each position's item changed across individual dates. The main heatmap collapses time; the drill-down unfolds it.</p>
+  <p class="section-desc">Use the drop-down selectbox below the chart to choose a %%bin_term%%. A time-series view expands for that %%bin_term%%, showing how each position's %%item_term%% changed across individual dates. The main heatmap collapses time; the drill-down unfolds it.</p>
 
   <!-- Main heatmap with Basin highlighted -->
   <div class="heatmap-wrap" style="margin-bottom:6px;">
@@ -592,7 +592,7 @@
     <span class="section-num">04</span>
     <h2>How they connect</h2>
   </div>
-  <p class="section-desc">Every cell in the main heatmap is the aggregated outcome of one column in the drill-down. The drill-down makes the individual votes visible; the main heatmap shows who won.</p>
+  <p class="section-desc">Every cell in the main heatmap is the aggregated outcome of one column in the drill-down. The drill-down makes the individual %%item_term%% votes visible; the main heatmap shows who won.</p>
 
   <div class="conn-wrap">
     <!-- P3 column extracted from drill-down -->

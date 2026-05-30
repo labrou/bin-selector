@@ -215,13 +215,13 @@
 <div class="page-eyebrow">Ranked Placement Atlas · Reference</div>
 <h1>Sort modes</h1>
 <p class="intro">
-  Each sort mode reorders the <strong>rows</strong> of the heatmap. The example below uses five bins and five ranked positions.
-  Three item types appear: Red, Blue, and Green. Row order changes — the data inside each row never changes.
+  Each sort mode reorders the <strong>rows</strong> of the heatmap. The example below uses five %%bin_term%%s and five ranked positions.
+  Three %%item_term%% types appear: Red, Blue, and Green. Row order changes — the data inside each row never changes.
 </p>
 
 <!-- Legend -->
 <div class="legend">
-  <span class="legend-label">Items</span>
+  <span class="legend-label">%%Item_term%%s</span>
   <span class="legend-item"><span class="swatch" style="background:var(--red)"></span>Red</span>
   <span class="legend-item"><span class="swatch" style="background:var(--blue)"></span>Blue</span>
   <span class="legend-item"><span class="swatch" style="background:var(--green)"></span>Green</span>
@@ -243,7 +243,7 @@
     <h2>Index</h2>
   </div>
   <p class="mode-desc">
-    Bins appear in the order they came in — no sorting applied.
+    %%Bin_term%%s appear in the order they came in — no sorting applied.
     This is your neutral starting point, useful as a baseline before
     applying any analytical ordering.
   </p>
@@ -281,12 +281,12 @@
     <h2>Similarity <span style="font-size:12px;color:var(--muted);font-weight:400;">· default</span></h2>
   </div>
   <p class="mode-desc">
-    Bins whose first four positions share the same item pattern are
+    %%Bin_term%%s whose first four positions share the same %%item_term%% pattern are
     placed next to each other. This surfaces "archetypes" — clusters of
-    bins with a similar opening profile — as broad horizontal colour bands.
+    %%bin_term%%s with a similar opening profile — as broad horizontal colour bands.
     Positions 5 and beyond do not affect the grouping.
   </p>
-  <p class="use-when"><strong>Use when:</strong> you want to discover which bins naturally belong to the same category, without knowing the categories in advance.</p>
+  <p class="use-when"><strong>Use when:</strong> you want to discover which %%bin_term%%s naturally belong to the same category, without knowing the categories in advance.</p>
 
   <div class="heatmap-wrap">
     <div class="heatmap" style="grid-template-columns: 120px repeat(5,var(--cell));">
@@ -320,14 +320,14 @@
 <div class="mode">
   <div class="mode-header">
     <span class="mode-num">Mode 3</span>
-    <h2>Bin Rank</h2>
+    <h2>%%Bin_term%% Rank</h2>
   </div>
   <p class="mode-desc">
-    Bins are ordered by their global rank — the best-ranked bin
-    (rank 1) sits at the top. The item content of each row is
+    %%Bin_term%%s are ordered by their global rank — the best-ranked %%bin_term%%
+    (rank 1) sits at the top. The %%item_term%% content of each row is
     unchanged; only the vertical order reflects performance.
   </p>
-  <p class="use-when"><strong>Use when:</strong> you want to see whether high-performing bins share a distinct item profile compared to lower-ranked ones.</p>
+  <p class="use-when"><strong>Use when:</strong> you want to see whether high-performing %%bin_term%%s share a distinct %%item_term%% profile compared to lower-ranked ones.</p>
 
   <div class="heatmap-wrap">
     <div class="heatmap" style="grid-template-columns: 120px repeat(5,var(--cell));">
@@ -350,7 +350,7 @@
       <div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--red)">R</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--green)">G</div><div class="cell" style="background:var(--blue)">B</div>
     </div>
   </div>
-  <p class="arrow">↑ Rank 1 at the top. The top two bins here both open with a different item — no clear shared profile in this example.</p>
+  <p class="arrow">↑ Rank 1 at the top. The top two %%bin_term%%s here both open with a different %%item_term%% — no clear shared profile in this example.</p>
 </div>
 <hr class="section-rule">
 
@@ -361,12 +361,12 @@
     <h2>Top-rank</h2>
   </div>
   <p class="mode-desc">
-    Bins are sorted strictly left-to-right: first by what item is at position 1,
-    then — among bins tied at position 1 — by position 2, then position 3, and so on.
+    %%Bin_term%%s are sorted strictly left-to-right: first by what %%item_term%% is at position 1,
+    then — among %%bin_term%%s tied at position 1 — by position 2, then position 3, and so on.
     The result is that the leftmost column is perfectly grouped; later columns
     resolve ties progressively.
   </p>
-  <p class="use-when"><strong>Use when:</strong> you want to find bins that have an identical item sequence from the very first position.</p>
+  <p class="use-when"><strong>Use when:</strong> you want to find %%bin_term%%s that have an identical %%item_term%% sequence from the very first position.</p>
 
   <div class="heatmap-wrap">
     <div class="heatmap" style="grid-template-columns: 120px repeat(5,var(--cell));">
@@ -403,14 +403,14 @@
     <h2>Selected Share</h2>
   </div>
   <p class="mode-desc">
-    After highlighting one or more items using the item pills,
-    bins are ranked by how many of the <em>visible</em> positions
-    those items occupy. The bin where your chosen items appear most
-    often rises to the top. When two bins tie on count, the one where
-    the selected items sit at <strong>earlier, more prominent positions</strong>
+    After highlighting one or more %%item_term%%s using the %%item_term%% pills,
+    %%bin_term%%s are ranked by how many of the <em>visible</em> positions
+    those %%item_term%%s occupy. The %%bin_term%% where your chosen %%item_term%%s appear most
+    often rises to the top. When two %%bin_term%%s tie on count, the one where
+    the selected %%item_term%%s sit at <strong>earlier, more prominent positions</strong>
     ranks higher. Changing the position range filter updates the ranking immediately.
   </p>
-  <p class="use-when"><strong>Use when:</strong> you've selected a specific item (or a set) and want to quickly find the bins most dominated by it — and, among equals, where it appears most prominently.</p>
+  <p class="use-when"><strong>Use when:</strong> you've selected a specific %%item_term%% (or a set) and want to quickly find the %%bin_term%%s most dominated by it — and, among equals, where it appears most prominently.</p>
   <p style="padding-left:60px;margin-bottom:16px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);">
     Example: <strong style="color:var(--ink);">Red</strong> is selected. Bins are ranked by how many of their 5 positions are Red; ties go to the bin with Red at earlier positions.
   </p>

@@ -236,16 +236,16 @@
 <h1>Aggregation Methods</h1>
 <p class="intro">
   When your data has <strong>multiple observations</strong> for the same
-  [bin, date, position, segment] — for example, the same slot measured by
+  [%%bin_term%%, date, position, segment] — for example, the same slot measured by
   several sources — the three methods offer different answers to:
-  <em>"Which item should represent this cell?"</em>
+  <em>"Which %%item_term%% should represent this cell?"</em>
   <br><br>
   Each method has distinct strengths. This guide walks through each one using
   the same worked example.
 </p>
 
 <div class="legend">
-  <span class="legend-label">items used below</span>
+  <span class="legend-label">%%item_term%%s used below</span>
   <span class="legend-item"><span class="swatch" style="background:var(--apx)"></span>APX</span>
   <span class="legend-item"><span class="swatch" style="background:var(--brt)"></span>BRT</span>
   <span class="legend-item"><span class="swatch" style="background:var(--cfd)"></span>CFD</span>
@@ -258,7 +258,7 @@
 
 <p style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.15em;
    text-transform:uppercase;color:var(--muted);margin-bottom:12px;">
-  Worked example — one (bin, position) over 5 dates
+  Worked example — one (%%bin_term%%, position) over 5 dates
 </p>
 
 <div class="obs-wrap" style="padding-left:0;margin-bottom:36px;">
@@ -319,10 +319,10 @@
     <h2>Majority</h2>
   </div>
   <p class="method-desc">
-    For each date, the item with the most observations is that date's
-    <em>plurality winner</em>. Across the selected date range, the item
+    For each date, the %%item_term%% with the most observations is that date's
+    <em>plurality winner</em>. Across the selected date range, the %%item_term%%
     that won the most dates is displayed. Ties are broken by the most-recent
-    date's winner, then by item order.
+    date's winner, then by %%item_term%% order.
   </p>
   <div class="rule-box">
     <span class="hl">Step 1</span> — per date: winner = argmax(N_item) for that date<br>
@@ -394,7 +394,7 @@
   <p class="use-when">
     <strong>Use when</strong> — you want to surface <em>clear per-snapshot majorities</em>
     and flag ambiguous dates explicitly. Unlike M1, a date where observations are split
-    50/30/20 % registers as contested rather than silently assigning the 50 % item.
+    50/30/20 % registers as contested rather than silently assigning the 50 % %%item_term%%.
   </p>
 
   <div class="obs-wrap">
@@ -483,10 +483,10 @@
     <h2>Weighted</h2>
   </div>
   <p class="method-desc">
-    All observations across the date range are pooled, and each item's
-    <em>aggregate share</em> is computed. The item with the highest share
+    All observations across the date range are pooled, and each %%item_term%%'s
+    <em>aggregate share</em> is computed. The %%item_term%% with the highest share
     is displayed; the bar chart below the heatmap shows the full distribution
-    (average share per item per position, across all visible bins).
+    (average share per %%item_term%% per position, across all visible %%bin_term%%s).
   </p>
   <div class="formula-wrap">
     <div class="formula">
@@ -694,11 +694,11 @@
       <tr>
         <td><strong>Abs. Majority</strong></td>
         <td>Surfacing clear winners and flagging genuinely mixed cells as VARIOUS</td>
-        <td>The 50 % threshold means that in a 3-item universe, VARIOUS is common — not necessarily a sign of disorder</td>
+        <td>The 50 % threshold means that in a 3-%%item_term%% universe, VARIOUS is common — not necessarily a sign of disorder</td>
       </tr>
       <tr>
         <td><strong>Weighted</strong></td>
-        <td>Continuous item-share analysis; dates with more observations carry more weight</td>
+        <td>Continuous %%item_term%%-share analysis; dates with more observations carry more weight</td>
         <td>Winner is always shown even if the margin is tiny (1 % vs 0.9 %); bar chart is the richest view</td>
       </tr>
     </tbody>
