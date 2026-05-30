@@ -1516,8 +1516,8 @@ fig.update_yaxes(
 )
 
 # ── Render ─────────────────────────────────────────────────────────────────────
-chart_event = st.plotly_chart(
-    fig, **_chart_own_width, on_select="rerun", key="main_chart",
+st.plotly_chart(
+    fig, **_chart_own_width, key="main_chart",
     config={"modeBarButtonsToRemove": ["zoom2d","pan2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","lasso2d","select2d"], "displaylogo": False},
 )
 
@@ -1569,11 +1569,6 @@ with _dl_html_col:
 
 # ── Drill-down ────────────────────────────────────────────────────────────────
 clicked_bin_name = None
-if chart_event and chart_event.selection and chart_event.selection.points:
-    for pt in chart_event.selection.points:
-        if pt.get('curve_number', -1) == 0 and pt.get('y'):
-            clicked_bin_name = pt['y']
-            break
 
 drill_col, _ = st.columns([2, 3])
 with drill_col:
