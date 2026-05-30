@@ -1536,35 +1536,10 @@ if st.session_state.get('_html_view_key') != _html_view_key:
     st.session_state['_html_view_key'] = _html_view_key
     st.session_state.pop('_html_bytes', None)
 
-# ── Drill-down ────────────────────────────────────────────────────────────────
-# Primary action first — immediately below the chart.
-clicked_bin_name = None
-
-drill_col, _ = st.columns([2, 3])
-with drill_col:
-    _no_sel      = f"— select a {bin_term} —"
-    drill_options = [_no_sel] + list(bin_names_disp)
-    default_idx   = 0
-    if clicked_bin_name and clicked_bin_name in drill_options:
-        default_idx = drill_options.index(clicked_bin_name)
-    st.markdown(
-        f'<p style="font-family:IBM Plex Sans,sans-serif;font-size:13px;'
-        f'color:{MUTED};margin:8px 0 2px;">Time series</p>',
-        unsafe_allow_html=True,
-    )
-    drill_bin = st.selectbox(
-        f"Time series",
-        drill_options,
-        index=default_idx,
-        key="drill_select",
-        label_visibility="collapsed",
-    )
-
-# ── Chart footer — utility controls ───────────────────────────────────────────
-st.divider()
+# ── Chart tools — belong to the main heatmap above ────────────────────────────
 _sz_col, _af_col, _gap_col, _dl_csv_col, _dl_html_col = st.columns([3, 1, 1, 1, 1])
 with _sz_col:
-    st.slider("Cell size (px)", 6, 28, cell_size, key="cell_sz", disabled=auto_fit)
+    st.slider("Cell size (px)", 6, 28, cell_size, key="cell_sz")
 with _af_col:
     st.write("")
     st.checkbox("Auto-fit", value=auto_fit, key="auto_fit_cb")
@@ -1588,6 +1563,29 @@ with _dl_html_col:
                 include_plotlyjs='cdn', config={'displayModeBar': True}
             ).encode()
         st.rerun()
+
+# ── Drill-down ────────────────────────────────────────────────────────────────
+st.divider()
+clicked_bin_name = None
+drill_col, _ = st.columns([2, 3])
+with drill_col:
+    _no_sel      = f"— select a {bin_term} —"
+    drill_options = [_no_sel] + list(bin_names_disp)
+    default_idx   = 0
+    if clicked_bin_name and clicked_bin_name in drill_options:
+        default_idx = drill_options.index(clicked_bin_name)
+    st.markdown(
+        f'<p style="font-family:IBM Plex Sans,sans-serif;font-size:13px;'
+        f'color:{MUTED};margin:0 0 2px;">Time series</p>',
+        unsafe_allow_html=True,
+    )
+    drill_bin = st.selectbox(
+        "Time series",
+        drill_options,
+        index=default_idx,
+        key="drill_select",
+        label_visibility="collapsed",
+    )
 
 if drill_bin != _no_sel:
     bin_matches = np.where(data['bin_names'] == drill_bin)[0]
