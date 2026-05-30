@@ -9,7 +9,6 @@ Hover any cell for exact values.
 Below the heatmap is a stacked bar showing the %%item_term%% distribution
 across visible %%bin_term%%s at each position (interpretation varies by method).
 
-[How the heatmap, bar, and drill-down connect →](%%VIZ_GUIDE_URL%%)
 
 ---
 
@@ -49,7 +48,6 @@ select or clear in bulk.
 | **Abs. Majority** | Per date: the plurality winner wins only if it holds ≥ 50 % of that day's observations; otherwise that day's value is **VARIOUS**. Cross-date aggregation is identical to Majority. |
 | **Weighted** | Pools all observations across the date range; %%item_term%% share = total N\_item ÷ total group\_N. Winner = highest share. |
 
-[Visual guide to all methods →](%%METHOD_GUIDE_URL%%)
 
 ---
 
@@ -74,7 +72,6 @@ a wider range triggers the selected Method's aggregation logic.
 | **Top-rank** | Groups %%bin_term%%s sharing the same %%item_term%% at position 1; ties resolved by position 2, 3, … |
 | **Selected Share** | Ranks %%bin_term%%s by how many visible positions are held by selected %%item_term%%s |
 
-[Visual guide to all sort modes →](%%SORT_GUIDE_URL%%)
 
 ---
 
