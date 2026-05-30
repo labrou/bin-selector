@@ -1236,8 +1236,6 @@ def _guide_subs():
         Segment_term=segment_term.capitalize(),
         filter_term=filter_term,
         Filter_term=filter_term.capitalize(),
-        SORT_GUIDE_URL=SORT_GUIDE_URL,
-        METHOD_GUIDE_URL=METHOD_GUIDE_URL,
     )
 
 
