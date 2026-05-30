@@ -9,6 +9,8 @@ Hover any cell for exact values.
 Below the heatmap is a stacked bar showing the %%item_term%% distribution
 across visible %%bin_term%%s at each position (interpretation varies by method).
 
+[How the heatmap, bar, and drill-down connect →](%%VIZ_GUIDE_URL%%)
+
 ---
 
 ### %%Filter_term%% — Row 1 (optional, leftmost)
