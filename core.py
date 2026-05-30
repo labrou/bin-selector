@@ -346,9 +346,9 @@ TITLE_FONTS = {
     "IBM Plex Sans":    ("'IBM Plex Sans', sans-serif",         "normal"),
 }
 
-SORT_GUIDE_URL   = "static/sort_modes_explainer.html"
-METHOD_GUIDE_URL = "static/method_explainer.html"
-VIZ_GUIDE_URL    = "static/visualization_explainer.html"
+SORT_GUIDE_URL   = "app/static/sort_modes_explainer.html"
+METHOD_GUIDE_URL = "app/static/method_explainer.html"
+VIZ_GUIDE_URL    = "app/static/visualization_explainer.html"
 
 
 def sort_descriptions(bt, it):
