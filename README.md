@@ -128,7 +128,7 @@ return a dictionary with the following keys:
 | `wt_filter_idx`   | `np.int32` \| `None` | `(n_nonzero,)` or `None`  | Filter index — parallel to `wt_bin_idx`; `None` when the `filter` column is absent. |
 | `date_winner_by_filter` | `np.int32` \| `None` | `(n_filters, n_bins, n_dates, n_pos)` or `None` | Per-filter-value plurality winner arrays; replaces `date_winner` when the `filter` column is present. |
 | `date_top_share_by_filter` | `np.float32` \| `None` | `(n_filters, n_bins, n_dates, n_pos)` or `None` | Per-filter-value top-share arrays; replaces `date_top_share` when the `filter` column is present. |
-| `filter_values`   | `list[str]`  | `n_filters` entries             | Sorted list of distinct filter labels; empty list when the `filter` column is absent. |
+| `filter_values`   | `list[str]` \| absent | `n_filters` entries or absent  | Sorted list of distinct filter labels (uploaded CSV only); absent in synthetic data. |
 | `bin_ranks`       | `np.int64`   | `(n_bins,)`                     | Global rank per bin. |
 | `bin_segments`    | `np.str_`    | `(n_bins,)`                     | Segment label per bin (the bin grouping attribute). |
 | `bin_names`       | `np.str_`    | `(n_bins,)`                     | Display name per bin (used on y-axis). |
