@@ -1489,6 +1489,8 @@ fig.update_layout(
         bgcolor=INK, bordercolor=INK,
         font=dict(family='IBM Plex Mono', size=11, color=BG),
     ),
+    dragmode=False,
+    clickmode='event+select',
 )
 fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, row=1, col=1)
 fig.update_xaxes(
@@ -1515,9 +1517,10 @@ fig.update_yaxes(
 # ── Render ─────────────────────────────────────────────────────────────────────
 chart_event = st.plotly_chart(
     fig, **_chart_own_width, on_select="rerun", key="main_chart",
+    config={"modeBarButtonsToRemove": ["zoom2d","pan2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","lasso2d","select2d"], "displaylogo": False},
 )
 
-st.caption(f"↓ Select a {bin_term} from the drop-down below to open its time series.")
+st.caption(f"↓ Click any cell to select a {bin_term}, or use the drop-down below.")
 _share_url_placeholder = st.empty()
 
 # ── HTML export ────────────────────────────────────────────────────────────────
