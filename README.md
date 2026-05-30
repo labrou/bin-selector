@@ -396,79 +396,60 @@ accumulate significant mass across the date range.
 
 ## Code structure
 
-The app lives in a single file `app.py`, organized into five sections.
+The codebase is organized into two files: `core.py` (compute logic and constants) and `app.py` (Streamlit UI and layout).
 
-### Section 1: Constants
+### `core.py` — Constants, data loading, and compute functions
 
-Fixed palette, synthetic bin names, and limits:
+**Constants:**
+- Palette, colours, and display limits (N_MAX_ITEMS, COLORS, VARIOUS_COLOR, OTHER_COLOR)
+- Synthetic data parameters (ITEMS, SEGMENTS, BIN_NAMES, NUM_BINS, NUM_POSITIONS, NUM_DATES)
+- Guide file paths (SORT_GUIDE_URL, METHOD_GUIDE_URL, VIZ_GUIDE_URL)
 
-```python
-N_MAX_ITEMS      = 12   # total colour slots (10 distinct + VARIOUS + _OTHER_)
-N_MAX_USER_ITEMS = 10   # max user-selectable distinctly-coloured items
-OTHER_COLOR      = '#9CA3AF'   # neutral gray for items beyond the colour limit
-VARIOUS_COLOR    = '#C2410C'   # burnt-orange for M2 VARIOUS cells
-COLORS           = ['#B91C1C', '#1E3A8A', ...]  # 12 qualitative colours
-VARIOUS_IDX      = n_items   # sentinel item index used for M2 VARIOUS cells
-```
+**Data loading:**
+- `generate_data()` — synthetic data generator with 5 archetypes, positional bias, drift, and regime changes; cached with fixed seed.
+- `parse_uploaded_csv(file_bytes, filename)` — parses user CSV into compact `date_winner`/`date_top_share` arrays and sparse `wt_*` long arrays.
 
-### Section 2: Data loading
+**Aggregation functions:**
+- `compute_plurality(date_winner_slice, n_items)` — vectorised majority over dates via `np.bincount`.
+- `compute_abs_majority(date_winner_slice, date_top_share_slice, n_items, various_idx)` — applies 50%-threshold per date.
+- `compute_weighted(data, visible_bin_indices, date_start_idx, date_end_idx, pos_indices, n_items)` — aggregates sparse `wt_*` arrays; returns full 3D weights array for visualization.
+- `compute_view(data, visible_bin_indices, date_start_idx, date_end_idx, pos_indices, method, n_items, various_idx)` — dispatcher that calls the appropriate aggregation function.
 
-- `discover_items(file_bytes, filename)` — fast first pass reading `item`
-  and `N_item` (when present) columns; returns items ordered by descending
-  total `N_item` (or row count when `N_item` is absent), and a count dict.
-  Cached by file content.
-- `load_user_data(file_bytes, filename)` — full parse; keeps all items with
-  real names; handles composite `(bin_id, segment)` keys; builds compact
-  `date_winner` / `date_top_share` arrays and sparse `wt_*` long arrays.
-  Returns the data dictionary without colour information.
-- `generate_data()` — synthetic data generator with multi-observation cells.
-  Cached with fixed seed.
-
-### Section 3: Compute functions
-
-- `compute_plurality(date_winner_slice, n_items)` — vectorised `np.bincount`
-  over the `(B, D, P)` int32 winner array; returns `(winner, share)` arrays.
-- `compute_abs_majority(date_winner_slice, date_top_share_slice, n_items, various_idx)` —
-  applies the 50%-threshold rule to `date_top_share`; cells below threshold
-  become `various_idx`. Returns `(winner, share)` arrays.
-- `compute_weighted(data, visible_bin_indices, date_start_idx, date_end_idx, pos_indices, n_items)` —
-  filters the sparse `wt_*` long arrays, accumulates `N_item` via
-  `np.bincount`, and normalises. Returns `(winner, share, weights)` arrays.
-- `compute_view(data, visible_bin_indices, date_start_idx, date_end_idx, pos_indices, method, n_items, various_idx)` —
-  unified entry point; dispatches to the right function; returns
-  `(winner, share, weights_or_None)`.
-
-### Section 4: Helpers
-
+**Helpers:**
+- `compute_sort_order(data, visible_bin_indices, pos_indices, mode)` — computes sort keys for all 5 sort modes.
 - `dim_color(hex, amount, bg)` — blends a color toward the background.
-- `apply_url_params(dates, item_codes)` — seeds widget state from URL query
-  params on fresh sessions (enables shareable links).
-- `make_view_csv(...)` — serialises the current heatmap view to CSV for
-  download.
-- `sort_descriptions(bin_term, item_term)` — returns sort-mode caption
-  strings using the current domain vocabulary.
+- `make_view_csv(winner, share, visible_bins, pos_indices, bin_names, item_codes, dates)` — exports current view to CSV.
+- `sort_descriptions(bin_term, item_term)` — returns sort-mode captions using domain vocabulary.
 
-### Section 5: App layout
+### `app.py` — Streamlit UI and caching
 
-Flat sequence of widget calls and data transforms executed top-to-bottom
-on every interaction:
+**Data generation section:**
+- Streamlit `@st.cache_resource` and `@st.cache_data` wrappers around `generate_data()` and `parse_uploaded_csv()`.
+- `discover_items(file_bytes, filename)` — fast first pass returning items ranked by frequency; cached.
+- `load_user_data(file_bytes, filename)` — full CSV parse with progress updates; cached per file content hash.
 
-1. Page config and CSS injection.
-2. Generate / load data; derive `_dataset_sig` for cache invalidation.
-3. Sidebar: file upload → `discover_items` → colour-selection multiselect
-   → `load_user_data` → terminology inputs.
-4. Derive `item_colors` from the colour-selection; define `pill_items`.
-5. JS injection for pill button colours.
+**App helpers section:**
+- `apply_url_params(dates, item_codes)` — seeds widget state from URL query params (enables shareable links).
+- `_guide_subs()` — builds substitution dict for `%%KEY%%` placeholders in guide markdown files; constructs absolute URLs from host header.
+- `_load_guide_html(filename)` — loads HTML guide, applies substitutions, renders via `st.markdown`.
+
+**App layout section:**
+
+Flat sequence of Streamlit calls executed top-to-bottom on every interaction:
+
+1. Page config, CSS injection, theme setup.
+2. Generate / load data; compute `_dataset_sig` for cache invalidation.
+3. Sidebar: file upload → `discover_items` → colour-selection multiselect → `load_user_data` → domain terminology inputs.
+4. Derive `item_colors` and `pill_items` from selected colours.
+5. CSS injection for dynamic pill button colours.
 6. Title block + **User guide** button (`@st.dialog`).
-7. **Row 1:** Filter pills (conditional, leftmost) + Regions pills + Items pills + **Method** pills.
-8. **Row 2:** Date range, bin rank range, position range sliders.
-9. **Row 3:** Sort mode radio.
-10. Session-state `_view_sig` cache check → `compute_view` (only when
-    dataset, visible bins, date range, position set, method, or item count
-    changes; skipped on sort/highlight/cell_size interactions).
-11. Filter pipeline → sort → build colorscale.
-12. View summary block + colour legend.
-13. Heatmap + marginal bar subplot → `st.plotly_chart`.
+7. **Row 1 (Filters):** Filter pills (optional) + Segment/Region pills + Item pills + Method pills.
+8. **Row 2 (Ranges):** Date range slider + Bin rank range slider + Position range slider.
+9. **Row 3 (Sort):** Sort mode radio (5 options).
+10. Session-state `_view_sig` cache check → `compute_view` (skips NumPy work on sort/highlight/cell-size changes).
+11. Apply filters → compute sort order → build Plotly colorscale.
+12. View summary block (bin count, position count, date range, method) + colour legend.
+13. Heatmap + stacked marginal bar subplot (Plotly); responsive cell sizing.
 14. Cell size slider + Auto-fit checkbox + Download CSV/HTML buttons.
 15. Drill-down selectbox for per-bin time-series heatmap.
 
