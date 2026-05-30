@@ -1492,22 +1492,22 @@ fig.update_layout(
     dragmode=False,
     clickmode='event+select',
 )
-fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, row=1, col=1)
+fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, fixedrange=True, row=1, col=1)
 fig.update_xaxes(
-    showgrid=False, zeroline=False,
+    showgrid=False, zeroline=False, fixedrange=True,
     tickvals=xtickvals, ticktext=[str(v) for v in xtickvals],
     tickfont=dict(size=9, family='IBM Plex Mono', color=MUTED),
     title=dict(text='POSITION', font=dict(size=9, family='IBM Plex Mono', color=MUTED)),
     row=2, col=1,
 )
 fig.update_yaxes(
-    showgrid=False, zeroline=False,
+    showgrid=False, zeroline=False, fixedrange=True,
     autorange='reversed',
     tickfont=dict(size=9, family='IBM Plex Mono', color=INK),
     row=1, col=1,
 )
 fig.update_yaxes(
-    showgrid=False, zeroline=False, range=[0, 1],
+    showgrid=False, zeroline=False, fixedrange=True, range=[0, 1],
     tickvals=[0, 0.5, 1], ticktext=['0%', '50%', '100%'],
     tickfont=dict(size=9, family='IBM Plex Mono', color=MUTED),
     title=dict(text=bar_y_label, font=dict(size=9, family='IBM Plex Mono', color=MUTED)),
