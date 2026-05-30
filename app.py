@@ -1227,12 +1227,6 @@ max_rank_val = int(data['bin_ranks'].max())
 # ── Dialogs ───────────────────────────────────────────────────────────────────
 def _guide_subs():
     """Return substitution dict for %%KEY%% placeholders in guide files."""
-    try:
-        _host  = st.context.headers.get("host", "localhost:8502")
-        _proto = "https" if not _host.startswith("localhost") else "http"
-        _base  = f"{_proto}://{_host}"
-    except Exception:
-        _base = ""
     return dict(
         bin_term=bin_term,
         Bin_term=bin_term.capitalize(),
@@ -1242,9 +1236,8 @@ def _guide_subs():
         Segment_term=segment_term.capitalize(),
         filter_term=filter_term,
         Filter_term=filter_term.capitalize(),
-        SORT_GUIDE_URL=f"{_base}/{SORT_GUIDE_URL}",
-        METHOD_GUIDE_URL=f"{_base}/{METHOD_GUIDE_URL}",
-        VIZ_GUIDE_URL=f"{_base}/{VIZ_GUIDE_URL}",
+        SORT_GUIDE_URL=SORT_GUIDE_URL,
+        METHOD_GUIDE_URL=METHOD_GUIDE_URL,
     )
 
 
