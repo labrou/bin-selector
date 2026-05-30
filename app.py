@@ -61,6 +61,7 @@ from core import (
     SORT_GUIDE_URL, METHOD_GUIDE_URL, VIZ_GUIDE_URL,
     generate_data, compute_plurality, compute_abs_majority,
     compute_weighted, compute_view, dim_color, make_view_csv, sort_descriptions,
+    parse_uploaded_csv, compute_sort_order,
 )
 
 
@@ -95,243 +96,18 @@ def load_user_data(file_bytes: bytes, filename: str):
     """Parse a pre-aggregated CSV into compact date_winner/date_top_share arrays
     and sparse long arrays for the Weighted method.
 
-    Required columns: bin_id, date, position, item, bin_rank, segment
-    Optional columns: N_item (defaults to 1 per row if absent)
-                      filter (row-level provenance label; rows with the same filter value form
-                              one independent dataset; shown as single-select pills in Row 1)
-    Duplicate (bin, date, position, item) rows are summed before processing,
-    so raw one-row-per-observation input works correctly.
-    group_N is computed internally as sum(N_item) per
-    [bin_id, date, position, bin_rank, segment] cell.
-    Dates accepted in M/D/YYYY format (single or double-digit month/day).
+    Delegates all pure data-transformation logic to parse_uploaded_csv in core.py
+    and translates the returned messages into Streamlit calls.
     """
-    try:
-        df = pd.read_csv(io.BytesIO(file_bytes))
-    except Exception as exc:
-        st.error(f"Could not parse CSV: {exc}")
-        return None
-
-    required = {'bin_id', 'date', 'position', 'item', 'bin_rank', 'segment'}
-    missing  = required - set(df.columns)
-    if missing:
-        st.error(f"CSV is missing columns: {', '.join(sorted(missing))}")
-        return None
-
-    has_filter = 'filter' in df.columns
-
-    # Date: parse as M/D/YYYY (single- or double-digit month/day, 4-digit year).
-    _raw_dates = df['date'].astype(str)
-    df['date']  = pd.to_datetime(_raw_dates, format='%m/%d/%Y', errors='coerce')
-    _n_nat = df['date'].isna().sum()
-    if _n_nat:
-        _fallback = pd.to_datetime(_raw_dates[df['date'].isna()], dayfirst=False, errors='coerce')
-        df.loc[df['date'].isna(), 'date'] = _fallback
-        _still_nat = df['date'].isna().sum()
-        if _still_nat:
-            st.warning(
-                f"{_still_nat:,} row(s) had unparseable dates and will be dropped. "
-                f"Expected format: M/D/YYYY (e.g. 1/5/2024 or 12/31/2024)."
-            )
-            df = df[df['date'].notna()]
-    df['date'] = df['date'].dt.date
-
-    # Drop rows where required string fields are null before astype(str), which
-    # would otherwise silently produce a visible "nan" category.
-    for _col in ('item', 'bin_id', 'segment'):
-        _null = df[_col].isna().sum()
-        if _null:
-            st.warning(f"{_null:,} row(s) had missing '{_col}' values and will be dropped.")
-            df = df[df[_col].notna()]
-    df['item']     = df['item'].astype(str)
-    df['bin_id']   = df['bin_id'].astype(str)
-    df['segment']  = df['segment'].astype(str)
-    if has_filter:
-        _null_f = df['filter'].isna().sum()
-        if _null_f:
-            st.warning(f"{_null_f:,} row(s) had missing 'filter' values and will be dropped.")
-            df = df[df['filter'].notna()]
-        df['filter'] = df['filter'].astype(str)
-        filter_vals = sorted(df['filter'].unique().tolist())
-        n_filters   = len(filter_vals)
-        _fi_map     = {fv: i for i, fv in enumerate(filter_vals)}
-        df['_fi']   = df['filter'].map(_fi_map).astype(np.int32)
-    else:
-        filter_vals = []
-        n_filters   = 0
-    df['bin_rank'] = pd.to_numeric(df['bin_rank'], errors='coerce')
-    _bad_rank = df['bin_rank'].isna().sum()
-    if _bad_rank:
-        st.warning(f"{_bad_rank:,} row(s) had unparseable bin_rank values; they will be set to 0.")
-        df['bin_rank'] = df['bin_rank'].fillna(0)
-    _frac_rank = (df['bin_rank'].notna() & (df['bin_rank'] != df['bin_rank'].round())).sum()
-    if _frac_rank:
-        st.warning(
-            f"{_frac_rank:,} row(s) had fractional bin_rank values; "
-            "they will be rounded to the nearest integer (e.g. 2.7 → 3)."
-        )
-        df['bin_rank'] = df['bin_rank'].round()
-    df['bin_rank'] = df['bin_rank'].astype(int)
-    df['position'] = pd.to_numeric(df['position'], errors='coerce')
-    _bad_pos = df['position'].isna().sum()
-    if _bad_pos:
-        st.warning(f"{_bad_pos:,} row(s) had unparseable position values and will be dropped.")
-        df = df[df['position'].notna()]
-    _frac_pos = (df['position'] != df['position'].round()).sum()
-    if _frac_pos:
-        st.warning(
-            f"{_frac_pos:,} row(s) had fractional position values and will be dropped "
-            "(e.g. 1.9 is not a valid integer position; truncation could merge distinct positions)."
-        )
-        df = df[df['position'] == df['position'].round()]
-    df['position'] = df['position'].astype(int)
-    # N_item is optional; default to 1 per row when absent or unparseable
-    if 'N_item' in df.columns:
-        df['N_item'] = pd.to_numeric(df['N_item'], errors='coerce').fillna(1)
-        _frac_ni = (df['N_item'].notna() & (df['N_item'] != df['N_item'].round())).sum()
-        if _frac_ni:
-            st.warning(
-                f"{_frac_ni:,} row(s) had fractional N_item values; "
-                "they will be rounded to the nearest integer (e.g. 3.7 → 4)."
-            )
-            df['N_item'] = df['N_item'].round()
-        df['N_item'] = df['N_item'].astype(np.int32)
-        _neg = (df['N_item'] < 0).sum()
-        if _neg:
-            st.warning(f"{_neg:,} row(s) had negative N_item values and were set to 0.")
-            df['N_item'] = df['N_item'].clip(lower=0)
-        # Drop zero-count rows: they contribute nothing and could produce ghost winners
-        _zero = (df['N_item'] == 0).sum()
-        if _zero:
-            df = df[df['N_item'] > 0]
-    else:
-        df['N_item'] = np.int32(1)
-
-    # Guard: nothing left after cleaning
-    if df.empty:
-        st.error("No valid rows remain after cleaning. Check dates, positions, and N_item values.")
-        return None
-
-    df['bin_key'] = df['bin_id'] + ' · ' + df['segment']
-
-    # Item vocabulary ranked by total observations
-    user_items  = (df.groupby('item')['N_item'].sum()
-                   .sort_values(ascending=False).index.tolist())
-    item_to_idx = {code: i for i, code in enumerate(user_items)}
-
-    bin_keys  = sorted(df['bin_key'].unique())
-    dates     = sorted(df['date'].unique())
-    positions = sorted(df['position'].unique())   # numeric after coercion above
-
-    n_bins  = len(bin_keys)
-    n_dates = len(dates)
-    n_pos   = len(positions)
-
-    bin_idx_map  = {b: i for i, b in enumerate(bin_keys)}
-    date_idx_map = {d: i for i, d in enumerate(dates)}
-    pos_idx_map  = {p: i for i, p in enumerate(positions)}
-
-    # Integer index columns (for vectorised array fill below)
-    df['_bi'] = df['bin_key'].map(bin_idx_map).astype(np.int32)
-    df['_di'] = df['date'].map(date_idx_map).astype(np.int32)
-    df['_pi'] = df['position'].map(pos_idx_map).astype(np.int32)
-    df['_ii'] = df['item'].map(item_to_idx)          # float, NaN for unknown items
-
-    valid_mask = df['_ii'].notna()
-    df_v = df[valid_mask].copy()
-    df_v['_ii'] = df_v['_ii'].astype(np.int32)
-
-    # Aggregate N_item: sum across duplicate rows within the same (bin, date, position,
-    # item[, filter]) key.  The filter dimension is kept separate so that rows from
-    # different provenances are never merged.
-    _agg_key = ['_bi', '_di', '_pi', '_ii'] + (['_fi'] if has_filter else [])
-    df_v = (
-        df_v.groupby(_agg_key, as_index=False)['N_item'].sum()
-    )
-
-    # group_N: total N_item across all items per (bin, date, position[, filter]) cell
-    _gn_key = ['_bi', '_di', '_pi'] + (['_fi'] if has_filter else [])
-    df_v['group_N'] = df_v.groupby(_gn_key)['N_item'].transform('sum')
-
-    # ── date_winner / date_top_share ──────────────────────────────────────────
-    # Sort by N_item DESC then item index ASC so the plurality winner (tie-break:
-    # lower item index) is always the first row after dedup.
-    _sort_cols = ['_bi', '_di', '_pi', 'N_item', '_ii']
-    _sort_asc  = [True, True, True, False, True]
-
-    def _fill_winner_arrays(df_sub):
-        dw  = np.full((n_bins, n_dates, n_pos), -1, dtype=np.int32)
-        dts = np.zeros((n_bins, n_dates, n_pos), dtype=np.float32)
-        if len(df_sub) == 0:
-            return dw, dts
-        _s  = df_sub.sort_values(_sort_cols, ascending=_sort_asc)
-        _w  = _s.drop_duplicates(['_bi', '_di', '_pi'], keep='first')
-        _bw   = _w['_bi'].to_numpy(np.intp)
-        _dw_  = _w['_di'].to_numpy(np.intp)
-        _pw   = _w['_pi'].to_numpy(np.intp)
-        _iw   = _w['_ii'].to_numpy(np.int32)
-        _ni_w = _w['N_item'].to_numpy(np.int32)
-        _gn_w = _w['group_N'].to_numpy(np.int32)
-        _sh   = np.where(_gn_w > 0,
-                         _ni_w.astype(np.float32) / np.maximum(_gn_w, 1),
-                         np.float32(0))
-        dw[_bw, _dw_, _pw]  = _iw
-        dts[_bw, _dw_, _pw] = _sh.astype(np.float32)
-        _zg = _gn_w <= 0
-        if _zg.any():
-            dw[_bw[_zg], _dw_[_zg], _pw[_zg]] = -1
-        return dw, dts
-
-    if has_filter:
-        _dw_list, _dts_list = [], []
-        for _fi_i in range(n_filters):
-            _dw_i, _dts_i = _fill_winner_arrays(df_v[df_v['_fi'] == _fi_i])
-            _dw_list.append(_dw_i)
-            _dts_list.append(_dts_i)
-        date_winner_by_filter    = np.stack(_dw_list)    # (n_filters, n_bins, n_dates, n_pos)
-        date_top_share_by_filter = np.stack(_dts_list)
-        date_winner = date_top_share = None
-    else:
-        date_winner, date_top_share = _fill_winner_arrays(df_v)
-        date_winner_by_filter = date_top_share_by_filter = None
-
-    # ── Sparse long arrays for Weighted ──────────────────────────────────────
-    bin_meta = (
-        df.drop_duplicates('bin_key')
-        .set_index('bin_key')
-        .loc[bin_keys, ['bin_rank', 'segment']]
-    )
-
-    # Warn if bin_rank is inconsistent for any bin (should be bin-level metadata)
-    _rank_nunique = df.groupby('bin_key')['bin_rank'].nunique()
-    _bad_ranks = (_rank_nunique > 1).sum()
-    if _bad_ranks:
-        st.warning(
-            f"{_bad_ranks} bin(s) have inconsistent bin_rank values across rows; "
-            "the first value encountered is used."
-        )
-
-    _file_id = hashlib.md5(file_bytes).hexdigest()[:10]
-
-    return {
-        'date_winner':              date_winner,
-        'date_top_share':           date_top_share,
-        'date_winner_by_filter':    date_winner_by_filter,
-        'date_top_share_by_filter': date_top_share_by_filter,
-        'wt_bin_idx':    df_v['_bi'].to_numpy(np.int32),
-        'wt_date_idx':   df_v['_di'].to_numpy(np.int32),
-        'wt_pos_idx':    df_v['_pi'].to_numpy(np.int32),
-        'wt_item_idx':   df_v['_ii'].to_numpy(np.int32),
-        'wt_N_item':     df_v['N_item'].to_numpy(np.int32),
-        'wt_filter_idx': df_v['_fi'].to_numpy(np.int32) if has_filter else None,
-        'bin_ranks':    bin_meta['bin_rank'].to_numpy().astype(int),
-        'bin_segments': bin_meta['segment'].to_numpy().astype(str),
-        'bin_names':    np.array(bin_keys),
-        'dates':        list(dates),
-        'positions':    list(positions),
-        'item_codes':   user_items,
-        'filter_values': filter_vals,
-        '_id':          _file_id,
-    }
+    data_dict, messages = parse_uploaded_csv(file_bytes)
+    for level, text in messages:
+        if level == "error":
+            st.error(text)
+        elif level == "warning":
+            st.warning(text)
+        elif level == "success":
+            st.success(text)
+    return data_dict
 
 
 # ============ APP HELPERS ============
@@ -1152,26 +928,13 @@ else:
     weights_view  = st.session_state['_wgt_view']
 
 # ── Sort ──────────────────────────────────────────────────────────────────────
-n_vis    = len(visible_bin_indices)
-sort_arr = np.where(majority_view == VARIOUS_IDX, -1, majority_view).astype(np.int32)
-
-if sort_mode == "Index":
-    order = np.arange(n_vis)
-elif sort_mode == f"{bin_term.capitalize()} Rank":
-    order = np.argsort(data['bin_ranks'][visible_bin_indices], kind='stable')
-elif sort_mode == "Similarity":
-    top4  = sort_arr[:, :4]
-    order = np.lexsort(top4.T[::-1])
-elif sort_mode == "Top-rank":
-    order = np.lexsort(sort_arr.T[::-1])
-elif sort_mode == "Selected Share":
-    sel_idx_set  = [item_codes.index(i) for i in selected_items]
-    sel_mask     = np.isin(majority_view, sel_idx_set)
-    share_count  = sel_mask.sum(axis=1)
-    pos_sum      = (sel_mask * (np.array(pos_indices) + 1)).sum(axis=1)
-    order        = np.lexsort([pos_sum, -share_count])
-else:
-    order = np.arange(n_vis)
+n_vis = len(visible_bin_indices)
+order = compute_sort_order(
+    sort_mode, majority_view,
+    data['bin_ranks'][visible_bin_indices],
+    VARIOUS_IDX,
+    selected_items or [], item_codes, pos_indices, n_pill_items,
+)
 
 ordered_bin_indices = visible_bin_indices[order]
 majority_disp       = majority_view[order]
