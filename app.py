@@ -962,7 +962,7 @@ with col_items:
         st.markdown(
             f'<p style="font-family:IBM Plex Mono,monospace;font-size:11px;'
             f'letter-spacing:0.15em;text-transform:uppercase;color:{INK};'
-            f'margin:0;padding-top:5px;">{item_term.capitalize()}s — highlights, not filter</p>',
+            f'margin:0;padding-top:5px;">{item_term.capitalize()}s</p>',
             unsafe_allow_html=True,
         )
     with _iall:  st.button("all",  key="btn_all",   on_click=_items_all)
@@ -979,6 +979,7 @@ with col_items:
     )
     if _other_pill:
         selected_items = [s for s in (selected_items or []) if s != _other_pill]
+    st.caption("Highlights only — does not filter rows.")
 
 with col_method:
     # Initialise default
@@ -1470,6 +1471,23 @@ else:
                 row=2, col=1,
             )
 
+# ── Click-selection overlay ───────────────────────────────────────────────────
+# Heatmap traces don't fire Plotly selection events. An invisible scatter trace
+# covering every cell acts as a transparent hit-target that does fire them.
+_sel_x = np.tile(positions_disp, n_show_bins).tolist()
+_sel_y = np.repeat(bin_names_disp, n_show_pos).tolist()
+fig.add_trace(
+    go.Scatter(
+        x=_sel_x, y=_sel_y,
+        mode='markers',
+        marker=dict(size=max(int(cell_h), 18), opacity=0.01, color='rgba(0,0,0,0)'),
+        showlegend=False,
+        hoverinfo='skip',
+        customdata=_sel_y,
+    ),
+    row=1, col=1,
+)
+
 xtickvals = sorted(set(
     [int(positions_disp[0]), int(positions_disp[-1])]
     + [p for p in positions_disp if int(p) % 5 == 0]
@@ -1568,10 +1586,12 @@ with _dl_html_col:
 
 # ── Drill-down ────────────────────────────────────────────────────────────────
 clicked_bin_name = None
+_bin_name_set = set(bin_names_disp.tolist())
 if chart_event and chart_event.selection and chart_event.selection.points:
     for pt in chart_event.selection.points:
-        if pt.get('curve_number', -1) == 0 and pt.get('y'):
-            clicked_bin_name = pt['y']
+        _y = pt.get('y')
+        if _y and _y in _bin_name_set:
+            clicked_bin_name = _y
             break
 
 drill_col, _ = st.columns([2, 3])
